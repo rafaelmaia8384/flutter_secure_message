@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../services/key_service.dart';
 import '../services/message_service.dart';
-import '../models/encrypted_message.dart';
-import 'dart:convert';
 import 'dart:math' as math;
-import 'message_detail_page.dart';
 
 class ImportMessagePage extends StatefulWidget {
   const ImportMessagePage({super.key});
@@ -154,10 +151,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
 
       _isProcessing.value = false;
       print('Mensagem importada com sucesso!');
-
-      // Navegar para a página de detalhes e, quando ela for fechada, voltar para HomePage
-      Get.off(() => MessageDetailPage(message: message),
-          popGesture: true, transition: Transition.rightToLeft);
+      Get.back();
     } catch (e) {
       if (e.toString().contains('Invalid message structure')) {
         _errorMessage.value = 'invalid_message_structure'.tr;

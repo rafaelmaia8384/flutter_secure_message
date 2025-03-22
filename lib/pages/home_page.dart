@@ -6,7 +6,6 @@ import '../controllers/app_controller.dart';
 import '../services/key_service.dart';
 import '../services/message_service.dart';
 import 'new_message_page.dart';
-import 'message_detail_page.dart';
 import 'import_message_page.dart';
 import '../models/encrypted_message.dart';
 import '../widgets/action_button.dart';
@@ -187,6 +186,7 @@ class _HomePageState extends State<HomePage>
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
               return ListView.builder(
+                padding: const EdgeInsets.all(12.0),
                 itemCount: sortedMessages.length,
                 itemBuilder: (context, index) {
                   final message = sortedMessages[index];
@@ -196,7 +196,7 @@ class _HomePageState extends State<HomePage>
                       !mounted ||
                       _animationController.status ==
                           AnimationStatus.dismissed) {
-                    return _buildMessageCard(message);
+                    return _buildChatBubble(message);
                   }
 
                   // Calcular a duração do atraso baseado no índice
@@ -208,7 +208,7 @@ class _HomePageState extends State<HomePage>
                   return AnimatedItemWidget(
                     controller: _animationController,
                     startInterval: start,
-                    child: _buildMessageCard(message),
+                    child: _buildChatBubble(message),
                   );
                 },
               );
@@ -266,13 +266,15 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildMessageCard(EncryptedMessage message) {
-    // Formata a data de criação da mensagem no formato dd/MM/yyyy HH:mm
+  Widget _buildChatBubble(EncryptedMessage message) {
+    // Formata a data de criação da mensagem
     final dateFormat = _formatDate(message.createdAt);
 
     // Obtém o nome do remetente da mensagem
+    bool isOwnMessage = message.senderPublicKey == _keyService.publicKey.value;
+
     String senderName;
-    if (message.senderPublicKey == _keyService.publicKey.value) {
+    if (isOwnMessage) {
       senderName = 'me'.tr;
     } else {
       // Procurar nas chaves de terceiros pelo senderPublicKey
@@ -288,29 +290,181 @@ class _HomePageState extends State<HomePage>
       }
     }
 
-    return ListTile(
-      title: Text(
-        senderName,
-        style: const TextStyle(fontWeight: FontWeight.bold),
+    // Tenta descriptografar a mensagem
+    String decryptedMessage = '';
+    String errorMessage = '';
+
+    try {
+      final userPrivateKey = _keyService.privateKey.value;
+
+      // Tenta descriptografar cada item da mensagem
+      bool decryptionSuccess = false;
+
+      for (var item in message.items) {
+        try {
+          final decryptedContent =
+              _keyService.tryDecryptMessage(item.encryptedText, userPrivateKey);
+
+          if (decryptedContent != null) {
+            decryptedMessage = decryptedContent;
+            decryptionSuccess = true;
+            break;
+          }
+        } catch (e) {
+          print('Error decrypting item: $e');
+        }
+      }
+
+      if (!decryptionSuccess) {
+        errorMessage = 'message_not_for_you'.tr;
+      }
+    } catch (e) {
+      errorMessage = 'error_decrypting'.tr;
+    }
+
+    // Calcula o número de terceiros autorizados - 1
+    final thirdPartyCount = message.items.length - 1;
+
+    // Determina a posição do bubble com base no remetente
+    final isFromMe = isOwnMessage;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Conteúdo do bubble sempre à esquerda
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  isFromMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isFromMe
+                        ? Colors.blue[700]
+                        : Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[800]
+                            : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Remetente
+                      Text(
+                        senderName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isFromMe
+                              ? Colors.white
+                              : Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Mensagem descriptografada ou erro
+                      errorMessage.isNotEmpty
+                          ? Text(
+                              errorMessage,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            )
+                          : Text(
+                              decryptedMessage,
+                              style: TextStyle(
+                                color: isFromMe
+                                    ? Colors.white
+                                    : Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.white
+                                        : Colors.black,
+                              ),
+                            ),
+
+                      // Informações adicionais
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Data de criação
+                          Text(
+                            dateFormat,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isFromMe
+                                  ? Colors.white70
+                                  : Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.grey[400]
+                                      : Colors.grey[700],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Número de terceiros autorizados
+                          Icon(
+                            Icons.people,
+                            size: 12,
+                            color: isFromMe
+                                ? Colors.white70
+                                : Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[700],
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            thirdPartyCount.toString(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isFromMe
+                                  ? Colors.white70
+                                  : Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.grey[400]
+                                      : Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Botões de ação verticais
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Botão de compartilhar
+              IconButton(
+                icon: const Icon(Icons.share, size: 20),
+                onPressed: () => _shareMessage(message),
+                // constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(8),
+                // visualDensity: VisualDensity.compact,
+              ),
+
+              // Botão de excluir
+              IconButton(
+                icon: const Icon(Icons.delete_forever, size: 20),
+                onPressed: () => _deleteMessage(message),
+                // constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(8),
+                // visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ],
       ),
-      subtitle: Text(
-        dateFormat,
-        style: TextStyle(
-          color: Colors.grey[600],
-          fontSize: 12,
-        ),
-      ),
-      trailing: IconButton(
-        // Usar o ícone apropriado dependendo da plataforma (adaptação iOS/Android)
-        icon: Theme.of(context).platform == TargetPlatform.iOS
-            ? const Icon(Icons.ios_share, color: Colors.blue)
-            : const Icon(Icons.share, color: Colors.blue),
-        onPressed: () => _shareMessage(message),
-      ),
-      onTap: () {
-        // Navegar para a página de detalhes da mensagem
-        Get.to(() => MessageDetailPage(message: message));
-      },
     );
   }
 
@@ -345,6 +499,46 @@ class _HomePageState extends State<HomePage>
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
+    }
+  }
+
+  // Excluir uma mensagem
+  void _deleteMessage(EncryptedMessage message) async {
+    final result = await Get.dialog<bool>(
+      AlertDialog(
+        title: Text('delete_message_title'.tr),
+        content: Text('delete_message_warning'.tr),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: Text('cancel'.tr),
+          ),
+          TextButton(
+            onPressed: () => Get.back(result: true),
+            child: Text('delete'.tr, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      try {
+        await _messageService.deleteMessage(message.id);
+
+        Get.snackbar(
+          'success'.tr,
+          'message_deleted'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } catch (e) {
+        Get.snackbar(
+          'error'.tr,
+          'error_deleting_message'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
     }
   }
 

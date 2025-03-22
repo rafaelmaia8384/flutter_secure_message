@@ -103,8 +103,7 @@ class AppTranslations extends Translations {
           'import_message': 'Import Encrypted Message',
           'import': 'Import',
           'decrypting_message': 'Decrypting message...',
-          'enter_encrypted_message':
-              'Paste the encrypted message here (format: sec-...)',
+          'enter_encrypted_message': 'Paste the encrypted message here...',
           'invalid_message_format':
               'Invalid message format. The message should start with "sec-" followed by encoded data.',
           'warning': 'Warning',
