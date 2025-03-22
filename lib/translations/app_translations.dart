@@ -155,6 +155,7 @@ class AppTranslations extends Translations {
           'add_recipients': 'Add Recipients',
           'no_personal_key_warning':
               'You do not have a personal key. You will not be able to decrypt this message later.',
+          'loading_messages': 'Loading messages...',
         },
       };
 }

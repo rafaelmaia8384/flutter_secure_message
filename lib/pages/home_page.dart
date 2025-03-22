@@ -27,6 +27,7 @@ class _HomePageState extends State<HomePage>
   final AppController _appController = Get.find<AppController>();
   final KeyService _keyService = Get.find<KeyService>();
   Worker? _animationWorker;
+  final RxBool _isLoading = false.obs;
 
   @override
   void initState() {
@@ -42,6 +43,7 @@ class _HomePageState extends State<HomePage>
     // Iniciar a animação quando a página é construída
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        _loadMessagesWithDelay();
         _animationController.forward();
       }
     });
@@ -54,6 +56,38 @@ class _HomePageState extends State<HomePage>
         _animationController.forward();
       }
     });
+  }
+
+  // Método para carregar mensagens com um delay mínimo
+  Future<void> _loadMessagesWithDelay() async {
+    // Verificar se há mensagens para carregar
+    if (_messageService.messages.isNotEmpty) {
+      _isLoading.value = true;
+
+      // Executar o carregamento de mensagens e registrar o tempo de início
+      final startTime = DateTime.now();
+      await _messageService.loadMessages();
+
+      // Calcular quanto tempo passou desde o início do carregamento
+      final elapsedTime = DateTime.now().difference(startTime).inMilliseconds;
+
+      // Se o carregamento foi mais rápido que 1 segundo (1000ms), aguardar o tempo restante
+      if (elapsedTime < 1000) {
+        await Future.delayed(Duration(milliseconds: 1000 - elapsedTime));
+      }
+
+      _isLoading.value = false;
+
+      // Atualizar o contador e animar se novas mensagens foram carregadas
+      if (_messageService.messages.length > _previousMessageCount.value) {
+        _previousMessageCount.value = _messageService.messages.length;
+        _appController.triggerMessageAnimation();
+      }
+    } else {
+      // Se não houver mensagens, apenas carregar sem mostrar indicador
+      await _messageService.loadMessages();
+      _previousMessageCount.value = _messageService.messages.length;
+    }
   }
 
   @override
@@ -83,6 +117,26 @@ class _HomePageState extends State<HomePage>
         children: [
           Expanded(
             child: Obx(() {
+              // Se estiver carregando, mostrar o indicador de progresso
+              if (_isLoading.value) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        'loading_messages'.tr,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
               // Verificar se novas mensagens foram adicionadas desde a última verificação
               if (_messageService.messages.length >
                   _previousMessageCount.value) {
@@ -156,13 +210,7 @@ class _HomePageState extends State<HomePage>
                             } else {
                               Get.to(() => const NewMessagePage())
                                   ?.then((_) async {
-                                await _messageService.loadMessages();
-                                if (_messageService.messages.length >
-                                    _previousMessageCount.value) {
-                                  _previousMessageCount.value =
-                                      _messageService.messages.length;
-                                  _appController.triggerMessageAnimation();
-                                }
+                                await _loadMessagesWithDelay();
                               });
                             }
                           } else if (option == 'import') {
@@ -185,32 +233,35 @@ class _HomePageState extends State<HomePage>
               final sortedMessages = _messageService.messages.toList()
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-              return ListView.builder(
-                padding: const EdgeInsets.all(12.0),
-                itemCount: sortedMessages.length,
-                itemBuilder: (context, index) {
-                  final message = sortedMessages[index];
+              return RefreshIndicator(
+                onRefresh: _loadMessagesWithDelay,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(12.0),
+                  itemCount: sortedMessages.length,
+                  itemBuilder: (context, index) {
+                    final message = sortedMessages[index];
 
-                  // Se não estiver animando ou o controller não estiver em estado válido, retornar o card sem animação
-                  if (!_appController.shouldAnimateNewMessages.value ||
-                      !mounted ||
-                      _animationController.status ==
-                          AnimationStatus.dismissed) {
-                    return _buildChatBubble(message);
-                  }
+                    // Se não estiver animando ou o controller não estiver em estado válido, retornar o card sem animação
+                    if (!_appController.shouldAnimateNewMessages.value ||
+                        !mounted ||
+                        _animationController.status ==
+                            AnimationStatus.dismissed) {
+                      return _buildChatBubble(message);
+                    }
 
-                  // Calcular a duração do atraso baseado no índice
-                  // para criar um efeito de cascata
-                  final delay = index * 0.2;
-                  final start = 0.2 + delay > 0.9 ? 0.9 : 0.2 + delay;
+                    // Calcular a duração do atraso baseado no índice
+                    // para criar um efeito de cascata
+                    final delay = index * 0.2;
+                    final start = 0.2 + delay > 0.9 ? 0.9 : 0.2 + delay;
 
-                  // Criar uma animação personalizada para cada item
-                  return AnimatedItemWidget(
-                    controller: _animationController,
-                    startInterval: start,
-                    child: _buildChatBubble(message),
-                  );
-                },
+                    // Criar uma animação personalizada para cada item
+                    return AnimatedItemWidget(
+                      controller: _animationController,
+                      startInterval: start,
+                      child: _buildChatBubble(message),
+                    );
+                  },
+                ),
               );
             }),
           ),
@@ -246,13 +297,7 @@ class _HomePageState extends State<HomePage>
                         );
                       } else {
                         Get.to(() => const NewMessagePage())?.then((_) async {
-                          await _messageService.loadMessages();
-                          if (_messageService.messages.length >
-                              _previousMessageCount.value) {
-                            _previousMessageCount.value =
-                                _messageService.messages.length;
-                            _appController.triggerMessageAnimation();
-                          }
+                          await _loadMessagesWithDelay();
                         });
                       }
                     } else if (option == 'import') {
