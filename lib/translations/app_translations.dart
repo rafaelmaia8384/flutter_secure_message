@@ -152,7 +152,8 @@ class AppTranslations extends Translations {
           'no_recipients_message':
               'You need to add at least one contact key before you can create encrypted messages.',
           'add_recipients': 'Add Recipients',
-          'no_personal_key_warning':
+          'no_personal_key_warning': 'You do not have a personal key',
+          'no_personal_key_error':
               'You do not have a personal key. You will not be able to decrypt this message later.',
           'loading_messages': 'Loading messages...',
           'created_messages': 'Created',
@@ -199,6 +200,28 @@ class AppTranslations extends Translations {
           'security_best_practices': 'Security best practices',
           'security_best_practices_description':
               '• Generate a new key pair if you suspect your device is compromised\n• You can replace your keys, but remember that previously encrypted messages can only be decrypted with the original key\n• Never share your private key with anyone\n• Verify the identity of people whose public keys you add\n• Always use secure channels when sharing public keys',
+
+          // Key regeneration
+          'regenerate_keys': 'Regenerate Keys',
+          'regenerate_keys_title': 'Regenerate Encryption Keys',
+          'regenerate_keys_warning':
+              'This will delete your current keys and generate new ones. All previous messages will not be decryptable anymore. This action cannot be undone.',
+          'regenerate': 'Regenerate',
+          'keys_regenerated':
+              'Keys regenerated successfully. Previous messages will no longer be decryptable.',
+          'keys_regeneration_failed':
+              'Failed to regenerate keys. Please try again.',
+          'refresh': 'Refresh',
+
+          // Key testing
+          'test_keys': 'Test Keys',
+          'testing_keys': 'Testing Keys',
+          'no_keys_to_test': 'No keys available to test',
+          'keys_test_passed':
+              'Key test passed successfully! Your keys are working properly.',
+          'keys_test_failed':
+              'Key test failed. Your keys may not be working correctly.',
+          'error_testing_keys': 'An error occurred while testing keys',
         },
       };
 }

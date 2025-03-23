@@ -9,6 +9,7 @@ import '../controllers/app_controller.dart';
 import '../services/key_service.dart';
 import '../widgets/action_button.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
 
 class KeysPage extends StatefulWidget {
   const KeysPage({super.key});
@@ -108,7 +109,7 @@ class _KeysPageState extends State<KeysPage> {
                   children: [
                     Text(
                       _keyService.hasKeys.value
-                          ? _keyService.publicKey.value.toUpperCase()
+                          ? _keyService.publicKey.value
                           : 'public_key_placeholder'.tr,
                       style: TextStyle(
                         fontSize: 14,
@@ -138,6 +139,12 @@ class _KeysPageState extends State<KeysPage> {
                                 const Icon(Icons.qr_code, color: Colors.white),
                             onPressed: () => _showQRCode(),
                             tooltip: 'show_qr'.tr,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.check_circle_outline,
+                                color: Colors.white),
+                            onPressed: _testCurrentKeys,
+                            tooltip: 'test_keys'.tr,
                           ),
                           IconButton(
                             icon: const Icon(Icons.refresh),
@@ -419,7 +426,7 @@ class _KeysPageState extends State<KeysPage> {
                 ),
                 const SizedBox(height: 16),
                 TextField(
-                  controller: TextEditingController(text: result.toUpperCase()),
+                  controller: TextEditingController(text: result),
                   decoration: InputDecoration(
                     labelText: 'scanned_key'.tr,
                     border: const OutlineInputBorder(),
@@ -467,8 +474,8 @@ class _KeysPageState extends State<KeysPage> {
     }
 
     // Check if key already exists
-    bool keyExists = _keyService.thirdPartyKeys.any(
-        (key) => key.publicKey.toLowerCase() == publicKeyString.toLowerCase());
+    bool keyExists = _keyService.thirdPartyKeys
+        .any((key) => key.publicKey == publicKeyString);
 
     if (keyExists) {
       Get.snackbar(
@@ -545,8 +552,7 @@ class _KeysPageState extends State<KeysPage> {
   Future<void> _copyPublicKey() async {
     if (!_keyService.hasKeys.value) return;
 
-    await Clipboard.setData(
-        ClipboardData(text: _keyService.publicKey.value.toUpperCase()));
+    await Clipboard.setData(ClipboardData(text: _keyService.publicKey.value));
     Get.snackbar(
       'success'.tr,
       'key_copied'.tr,
@@ -558,7 +564,7 @@ class _KeysPageState extends State<KeysPage> {
     if (!_keyService.hasKeys.value) return;
 
     await Share.share(
-      '${_keyService.publicKey.value.toUpperCase()}',
+      '${_keyService.publicKey.value}',
       subject: 'public_key_share'.tr,
     );
   }
@@ -582,7 +588,7 @@ class _KeysPageState extends State<KeysPage> {
               ),
               const SizedBox(height: 16),
               QrImageView(
-                data: _keyService.publicKey.value.toUpperCase(),
+                data: _keyService.publicKey.value,
                 version: QrVersions.auto,
                 size: 280.0,
                 backgroundColor: Colors.white,
@@ -825,6 +831,84 @@ class _KeysPageState extends State<KeysPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _testCurrentKeys() async {
+    if (!_keyService.hasKeys.value) {
+      Get.snackbar(
+        'error'.tr,
+        'no_keys_to_test'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    try {
+      // Mostrar um diálogo de progresso enquanto o teste é executado
+      final completer = Completer<bool>();
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          // Executar o teste em segundo plano
+          Future.microtask(() async {
+            try {
+              final result = _keyService.testSelfEncryption();
+              completer.complete(result);
+            } catch (e) {
+              completer.complete(false);
+            }
+          });
+
+          return AlertDialog(
+            title: Text('testing_keys'.tr),
+            content: Row(
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 20),
+                Expanded(child: Text('please_wait'.tr)),
+              ],
+            ),
+          );
+        },
+      );
+
+      // Aguardar o resultado do teste
+      final result = await completer.future;
+
+      // Fechar o diálogo de progresso
+      Navigator.of(context, rootNavigator: true).pop();
+
+      // Mostrar o resultado
+      if (result) {
+        Get.snackbar(
+          'success'.tr,
+          'keys_test_passed'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        Get.snackbar(
+          'error'.tr,
+          'keys_test_failed'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      Get.snackbar(
+        'error'.tr,
+        'error_testing_keys'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 }
 

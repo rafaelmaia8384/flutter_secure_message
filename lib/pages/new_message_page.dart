@@ -9,6 +9,7 @@ import 'dart:math' as math;
 class RecipientSelectionController extends GetxController {
   final KeyService _keyService = Get.find<KeyService>();
   final RxList<bool> selectedRecipients = <bool>[].obs;
+  final RxBool includeSelf = false.obs;
 
   @override
   void onInit() {
@@ -21,6 +22,8 @@ class RecipientSelectionController extends GetxController {
       _keyService.thirdPartyKeys.length,
       (_) => false,
     );
+
+    includeSelf.value = false;
   }
 
   void toggleRecipient(int index, bool? value) {
@@ -28,6 +31,10 @@ class RecipientSelectionController extends GetxController {
     final newList = selectedRecipients.toList();
     newList[index] = value ?? false;
     selectedRecipients.value = newList;
+  }
+
+  void toggleSelf(bool? value) {
+    includeSelf.value = value ?? false;
   }
 
   List<int> getSelectedIndexes() {
@@ -38,6 +45,10 @@ class RecipientSelectionController extends GetxController {
       }
     }
     return selectedIndexes;
+  }
+
+  bool hasAtLeastOneRecipient() {
+    return includeSelf.value || selectedRecipients.contains(true);
   }
 }
 
@@ -143,22 +154,45 @@ class _NewMessagePageState extends State<NewMessagePage> {
 
     final result = await Get.dialog<List<bool>>(
       AlertDialog(
-        title: Text('authorized_third_parties'.tr),
+        title: Text('select_recipients'.tr),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: _keyService.thirdPartyKeys.length,
-            itemBuilder: (context, index) {
-              final key = _keyService.thirdPartyKeys[index];
-              return Obx(() => CheckboxListTile(
-                    title: Text(key.name),
-                    value: _recipientController.selectedRecipients[index],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Opção "Me" no topo da lista
+              Obx(() => CheckboxListTile(
+                    title: Text('me'.tr),
+                    subtitle: _keyService.hasKeys.value
+                        ? null
+                        : Text('no_personal_key_warning'.tr,
+                            style: TextStyle(color: Colors.red, fontSize: 12)),
+                    value: _recipientController.includeSelf.value,
+                    enabled: _keyService.hasKeys.value,
                     onChanged: (bool? value) {
-                      _recipientController.toggleRecipient(index, value);
+                      _recipientController.toggleSelf(value);
                     },
-                  ));
-            },
+                  )),
+              // Separador entre "Me" e outros contatos
+              const Divider(),
+              // Lista de contatos de terceiros
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _keyService.thirdPartyKeys.length,
+                  itemBuilder: (context, index) {
+                    final key = _keyService.thirdPartyKeys[index];
+                    return Obx(() => CheckboxListTile(
+                          title: Text(key.name),
+                          value: _recipientController.selectedRecipients[index],
+                          onChanged: (bool? value) {
+                            _recipientController.toggleRecipient(index, value);
+                          },
+                        ));
+                  },
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
@@ -171,8 +205,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
           ),
           TextButton(
             onPressed: () async {
-              if (_recipientController.selectedRecipients
-                  .any((selected) => selected)) {
+              if (_recipientController.hasAtLeastOneRecipient()) {
                 Get.back();
                 await _encryptAndSaveMessage();
               } else {
@@ -195,8 +228,9 @@ class _NewMessagePageState extends State<NewMessagePage> {
 
     final messageText = _textController.text.trim();
     final selectedIndexes = _recipientController.getSelectedIndexes();
+    final includeSelf = _recipientController.includeSelf.value;
 
-    if (selectedIndexes.isEmpty) {
+    if (selectedIndexes.isEmpty && !includeSelf) {
       Get.snackbar(
         'error'.tr,
         'select_recipients_warning'.tr,
@@ -229,6 +263,20 @@ class _NewMessagePageState extends State<NewMessagePage> {
       print(
           "Chave do remetente: ${senderKey.substring(0, math.min(10, senderKey.length))}...");
 
+      // Se apenas "Me" estiver selecionado, fazer um teste de criptografia/descriptografia
+      // antes de prosseguir para garantir que funciona
+      if (includeSelf && selectedIndexes.isEmpty && userPublicKey.isNotEmpty) {
+        print(
+            "Teste de criptografia para si mesmo antes de enviar a mensagem...");
+        bool testResult = _keyService.testSelfEncryption();
+
+        if (!testResult) {
+          throw Exception('Falha no teste de criptografia para si mesmo');
+        } else {
+          print("Teste bem-sucedido, prosseguindo com o envio...");
+        }
+      }
+
       // Para cada chave selecionada, criptografar a mensagem e adicionar à lista
       for (final index in selectedIndexes) {
         final key = _keyService.thirdPartyKeys[index];
@@ -252,15 +300,15 @@ class _NewMessagePageState extends State<NewMessagePage> {
         );
       }
 
-      // Adicionar uma versão criptografada para o próprio usuário, apenas se tiver uma chave pública
-      if (userPublicKey.isNotEmpty) {
+      // Adicionar uma versão criptografada para o próprio usuário se foi selecionado
+      if (includeSelf && userPublicKey.isNotEmpty) {
         print(
             'Criptografando mensagem para o próprio usuário com chave: ${userPublicKey.substring(0, math.min(10, userPublicKey.length))}...');
 
-        // Também usando a chave pública, assim qualquer um com a chave privada correspondente pode descriptografar
+        // Usando a chave pública do usuário para criptografar para si mesmo
         final selfEncryptedText = _keyService.encryptMessage(
           messageText,
-          userPublicKey, // Usar a chave pública do usuário para criptografar para si mesmo
+          userPublicKey,
         );
 
         items.add(
@@ -269,9 +317,25 @@ class _NewMessagePageState extends State<NewMessagePage> {
             createdAt: currentTimeUTC,
           ),
         );
-      } else {
+      } else if (!includeSelf && selectedIndexes.isEmpty) {
+        print('Nenhum destinatário selecionado, cancelando');
+        _isProcessing.value = false;
+        return;
+      } else if (includeSelf && userPublicKey.isEmpty) {
         print(
-            'Usuário não possui chave própria, pulando criptografia para si mesmo');
+            'Usuário não possui chave própria, mas a opção Me foi selecionada');
+        Get.snackbar(
+          'warning'.tr,
+          'no_personal_key_error'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      }
+
+      // Verificar se há itens criptografados
+      if (items.isEmpty) {
+        throw Exception('No encrypted items to save');
       }
 
       // Criar e salvar a mensagem criptografada
