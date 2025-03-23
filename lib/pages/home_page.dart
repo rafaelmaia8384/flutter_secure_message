@@ -251,7 +251,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
 
       // Sort by creation date (newest first)
-      filteredMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      filteredMessages.sort((a, b) {
+        // Primary sorting by creation date (newest first)
+        int dateComparison = b.createdAt.compareTo(a.createdAt);
+
+        // If dates are the same, use message ID to ensure consistent ordering
+        return dateComparison != 0 ? dateComparison : b.id.compareTo(a.id);
+      });
 
       return ListView.builder(
         padding: const EdgeInsets.all(12.0),

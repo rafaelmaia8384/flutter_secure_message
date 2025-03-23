@@ -43,7 +43,6 @@ class AppTranslations extends Translations {
           'show_qr': 'Show QR Code',
           'scan_qr_code': 'Scan QR Code',
           'key_copied': 'Public key copied to clipboard',
-          'my_public_key': 'My Public Key',
           'public_key_share': 'Share Public Key',
           'close': 'Close',
           'add_new_key': 'Add New Key',

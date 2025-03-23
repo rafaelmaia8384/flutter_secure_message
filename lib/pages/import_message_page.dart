@@ -153,7 +153,8 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
         id: message.id,
         senderPublicKey: message.senderPublicKey,
         items: message.items,
-        createdAt: message.createdAt,
+        createdAt:
+            DateTime.now().toUtc(), // Use current time for imported messages
         isImported: true, // Mark as imported
       );
 

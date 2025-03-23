@@ -558,7 +558,7 @@ class _KeysPageState extends State<KeysPage> {
     if (!_keyService.hasKeys.value) return;
 
     await Share.share(
-      '${'my_public_key'.tr}:\n${_keyService.publicKey.value.toUpperCase()}',
+      '${_keyService.publicKey.value.toUpperCase()}',
       subject: 'public_key_share'.tr,
     );
   }
