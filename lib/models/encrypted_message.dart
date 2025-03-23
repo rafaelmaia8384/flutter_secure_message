@@ -5,12 +5,14 @@ class EncryptedMessage {
   final String senderPublicKey;
   final List<EncryptedMessageItem> items;
   final DateTime createdAt;
+  final bool isImported;
 
   EncryptedMessage({
     required this.id,
     required this.senderPublicKey,
     required this.items,
     required this.createdAt,
+    this.isImported = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -19,6 +21,7 @@ class EncryptedMessage {
       'senderPublicKey': senderPublicKey,
       'items': items.map((item) => item.toJson()).toList(),
       'createdAt': createdAt.toIso8601String(),
+      'isImported': isImported,
     };
   }
 
@@ -30,6 +33,7 @@ class EncryptedMessage {
           .map((item) => EncryptedMessageItem.fromJson(item))
           .toList(),
       createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+      isImported: json['isImported'] as bool? ?? false,
     );
   }
 }

@@ -19,23 +19,40 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late AnimationController _animationController;
+  late TabController _tabController;
   final RxInt _previousMessageCount = 0.obs;
   final MessageService _messageService = Get.put(MessageService());
   final AppController _appController = Get.find<AppController>();
   final KeyService _keyService = Get.find<KeyService>();
   Worker? _animationWorker;
   final RxBool _isLoading = false.obs;
+  final RxInt _selectedTabIndex = 0.obs; // Track the selected tab index
 
   @override
   void initState() {
     super.initState();
+
+    // Initialize animation controller
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
+
+    // Initialize the tab controller with the same ticker provider
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: 0,
+    );
+
+    // Set up tab change listener
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging == false) {
+        _selectedTabIndex.value = _tabController.index;
+      }
+    });
 
     // Inicializar o contador de mensagens
     _previousMessageCount.value = _messageService.messages.length;
@@ -92,6 +109,9 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
+    // Dispose tab controller
+    _tabController.dispose();
+
     // Remover o listener antes de descartar o controller
     _animationWorker?.dispose();
 
@@ -112,203 +132,193 @@ class _HomePageState extends State<HomePage>
             onPressed: () => Get.toNamed('/keys'),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            Tab(text: 'created_messages'.tr, icon: Icon(Icons.create)),
+            Tab(text: 'imported_messages'.tr, icon: Icon(Icons.download)),
+          ],
+        ),
       ),
-      body: Column(
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          Expanded(
-            child: Obx(() {
-              // Se estiver carregando, mostrar o indicador de progresso
-              if (_isLoading.value) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 16),
-                      Text(
-                        'loading_messages'.tr,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              // Verificar se novas mensagens foram adicionadas desde a última verificação
-              if (_messageService.messages.length >
-                  _previousMessageCount.value) {
-                // Como há novas mensagens, atualizar a contagem e sinalizar para animar
-                _previousMessageCount.value = _messageService.messages.length;
-                _appController.triggerMessageAnimation();
-              } else {
-                // Apenas atualizar o contador
-                _previousMessageCount.value = _messageService.messages.length;
-              }
-
-              if (_messageService.messages.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.inbox_outlined,
-                        size: 80,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'no_messages'.tr,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 40),
-                        child: Text(
-                          'no_messages_description'.tr,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          final option = await _showMessageOptionsDialog();
-                          if (option == 'create') {
-                            // Check if user has third-party keys
-                            if (_keyService.thirdPartyKeys.isEmpty) {
-                              Get.dialog(
-                                AlertDialog(
-                                  title: Text('no_third_party_keys_title'.tr),
-                                  content:
-                                      Text('no_third_party_keys_message'.tr),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Get.back(),
-                                      child: Text('close'.tr),
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        Get.back();
-                                        Get.toNamed('/keys',
-                                            arguments: {'initialTab': 1});
-                                      },
-                                      child: Text('add_third_party_key'.tr),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            } else {
-                              Get.to(() => const NewMessagePage())
-                                  ?.then((_) async {
-                                await _loadMessagesWithDelay();
-                              });
-                            }
-                          } else if (option == 'import') {
-                            _handleImportMessage();
-                          }
-                        },
-                        icon: const Icon(Icons.add),
-                        label: Text('start_messaging'.tr),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              // Criar uma lista ordenada por data de criação (mais recentes primeiro)
-              final sortedMessages = _messageService.messages.toList()
-                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-              return RefreshIndicator(
-                onRefresh: _loadMessagesWithDelay,
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(12.0),
-                  itemCount: sortedMessages.length,
-                  itemBuilder: (context, index) {
-                    final message = sortedMessages[index];
-
-                    // Se não estiver animando ou o controller não estiver em estado válido, retornar o card sem animação
-                    if (!_appController.shouldAnimateNewMessages.value ||
-                        !mounted ||
-                        _animationController.status ==
-                            AnimationStatus.dismissed) {
-                      return _buildChatBubble(message);
-                    }
-
-                    // Calcular a duração do atraso baseado no índice
-                    // para criar um efeito de cascata
-                    final delay = index * 0.2;
-                    final start = 0.2 + delay > 0.9 ? 0.9 : 0.2 + delay;
-
-                    // Criar uma animação personalizada para cada item
-                    return AnimatedItemWidget(
-                      controller: _animationController,
-                      startInterval: start,
-                      child: _buildChatBubble(message),
-                    );
-                  },
-                ),
-              );
-            }),
+          // Created Messages Tab with its own action button
+          _buildTabWithActionButton(
+            isImported: false,
+            actionButton: ActionButton(
+              label: 'new_message'.tr,
+              icon: Icons.create,
+              onPressed: () => _createNewMessage(),
+            ),
           ),
-          // Botão de ação na parte inferior
-          Obx(() => _messageService.messages.isNotEmpty
-              ? ActionButton(
-                  label: 'message_options'.tr,
-                  icon: Icons.add,
-                  onPressed: () async {
-                    final option = await _showMessageOptionsDialog();
-                    if (option == 'create') {
-                      // Check if user has third-party keys
-                      if (_keyService.thirdPartyKeys.isEmpty) {
-                        Get.dialog(
-                          AlertDialog(
-                            title: Text('no_third_party_keys_title'.tr),
-                            content: Text('no_third_party_keys_message'.tr),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Get.back(),
-                                child: Text('close'.tr),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Get.back();
-                                  Get.toNamed('/keys',
-                                      arguments: {'initialTab': 1});
-                                },
-                                child: Text('add_third_party_key'.tr),
-                              ),
-                            ],
-                          ),
-                        );
-                      } else {
-                        Get.to(() => const NewMessagePage())?.then((_) async {
-                          await _loadMessagesWithDelay();
-                        });
-                      }
-                    } else if (option == 'import') {
-                      _handleImportMessage();
-                    }
-                  },
-                )
-              : const SizedBox.shrink()),
+          // Imported Messages Tab with its own action button
+          _buildTabWithActionButton(
+            isImported: true,
+            actionButton: ActionButton(
+              label: 'import_message'.tr,
+              icon: Icons.download,
+              onPressed: () => _handleImportMessage(),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  // Helper method to build a tab with its own action button
+  Widget _buildTabWithActionButton({
+    required bool isImported,
+    required Widget actionButton,
+  }) {
+    return Column(
+      children: [
+        Expanded(child: _buildMessagesTab(isImported)),
+        actionButton,
+      ],
+    );
+  }
+
+  // Helper method to create new message
+  void _createNewMessage() {
+    // Check if user has third-party keys
+    if (_keyService.thirdPartyKeys.isEmpty) {
+      Get.dialog(
+        AlertDialog(
+          title: Text('no_third_party_keys_title'.tr),
+          content: Text('no_third_party_keys_message'.tr),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: Text('close'.tr),
+            ),
+            TextButton(
+              onPressed: () {
+                Get.back();
+                Get.toNamed('/keys', arguments: {'initialTab': 1});
+              },
+              child: Text('add_third_party_key'.tr),
+            ),
+          ],
+        ),
+      );
+    } else {
+      Get.to(() => const NewMessagePage())?.then((_) async {
+        await _loadMessagesWithDelay();
+      });
+    }
+  }
+
+  // Widget to build the content of each tab
+  Widget _buildMessagesTab(bool isImported) {
+    return Obx(() {
+      // Se estiver carregando, mostrar o indicador de progresso
+      if (_isLoading.value) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'loading_messages'.tr,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Verificar se novas mensagens foram adicionadas desde a última verificação
+      if (_messageService.messages.length > _previousMessageCount.value) {
+        // Como há novas mensagens, atualizar a contagem e sinalizar para animar
+        _previousMessageCount.value = _messageService.messages.length;
+        _appController.triggerMessageAnimation();
+      } else {
+        // Apenas atualizar o contador
+        _previousMessageCount.value = _messageService.messages.length;
+      }
+
+      // Filter messages based on tab
+      final filteredMessages = _messageService.messages
+          .where((msg) => msg.isImported == isImported)
+          .toList();
+
+      if (filteredMessages.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isImported ? Icons.download_outlined : Icons.create_outlined,
+                size: 80,
+                color: Colors.grey[400],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isImported
+                    ? 'no_imported_messages'.tr
+                    : 'no_created_messages'.tr,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  isImported
+                      ? 'no_imported_messages_description'.tr
+                      : 'no_created_messages_description'.tr,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Sort by creation date (newest first)
+      filteredMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      return RefreshIndicator(
+        onRefresh: _loadMessagesWithDelay,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(12.0),
+          itemCount: filteredMessages.length,
+          itemBuilder: (context, index) {
+            final message = filteredMessages[index];
+
+            // Animation logic
+            if (!_appController.shouldAnimateNewMessages.value ||
+                !mounted ||
+                _animationController.status == AnimationStatus.dismissed) {
+              return _buildChatBubble(message);
+            }
+
+            // Last item added should animate
+            if (index == 0 && _appController.shouldAnimateNewMessages.value) {
+              return AnimatedItemWidget(
+                controller: _animationController,
+                startInterval: 0.0,
+                child: _buildChatBubble(message),
+              );
+            }
+
+            return _buildChatBubble(message);
+          },
+        ),
+      );
+    });
   }
 
   Widget _buildChatBubble(EncryptedMessage message) {
@@ -585,36 +595,6 @@ class _HomePageState extends State<HomePage>
         );
       }
     }
-  }
-
-  // Mostra diálogo de opções para mensagens
-  Future<String?> _showMessageOptionsDialog() async {
-    return await Get.dialog<String>(
-      AlertDialog(
-        title: Text('message_options_title'.tr),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.create),
-              title: Text('create_new_message'.tr),
-              onTap: () => Get.back(result: 'create'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.download),
-              title: Text('import_message'.tr),
-              onTap: () => Get.back(result: 'import'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: Text('cancel'.tr),
-          ),
-        ],
-      ),
-    );
   }
 
   // Método para lidar com a importação de mensagens

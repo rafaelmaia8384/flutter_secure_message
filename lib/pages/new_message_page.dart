@@ -280,6 +280,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
         senderPublicKey: senderKey,
         items: items,
         createdAt: currentTimeUTC,
+        isImported: false,
       );
 
       await _messageService.addMessage(newMessage);

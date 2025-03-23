@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../services/key_service.dart';
 import '../services/message_service.dart';
+import '../models/encrypted_message.dart';
 import 'dart:math' as math;
 
 class ImportMessagePage extends StatefulWidget {
@@ -146,8 +147,17 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
       }
 
       print('Mensagem pode ser descriptografada. Adicionando à lista...');
-      // Adicionar a mensagem à lista
-      await _messageService.addMessage(message);
+      // Adicionar a mensagem à lista, marcando como importada
+      // Create a new message with the imported flag
+      final importedMessage = EncryptedMessage(
+        id: message.id,
+        senderPublicKey: message.senderPublicKey,
+        items: message.items,
+        createdAt: message.createdAt,
+        isImported: true, // Mark as imported
+      );
+
+      await _messageService.addMessage(importedMessage);
 
       _isProcessing.value = false;
       print('Mensagem importada com sucesso!');

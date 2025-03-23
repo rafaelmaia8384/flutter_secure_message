@@ -156,6 +156,14 @@ class AppTranslations extends Translations {
           'no_personal_key_warning':
               'You do not have a personal key. You will not be able to decrypt this message later.',
           'loading_messages': 'Loading messages...',
+          'created_messages': 'Created',
+          'imported_messages': 'Imported',
+          'no_created_messages': 'No created messages',
+          'no_imported_messages': 'No imported messages',
+          'no_created_messages_description':
+              'Create a new encrypted message to send to your contacts',
+          'no_imported_messages_description':
+              'Import an encrypted message that was shared with you',
         },
       };
 }
