@@ -269,15 +269,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final dateFormat = _formatDate(message.createdAt);
 
     // Obtém o nome do remetente da mensagem
-    bool isOwnMessage = message.senderPublicKey == _keyService.publicKey.value;
+    bool isOwnMessage = message.senderPublicKey.toLowerCase() ==
+        _keyService.publicKey.value.toLowerCase();
 
     String senderName;
     if (isOwnMessage) {
       senderName = 'me'.tr;
     } else {
-      // Procurar nas chaves de terceiros pelo senderPublicKey
-      int keyIndex = _keyService.thirdPartyKeys
-          .indexWhere((key) => key.publicKey == message.senderPublicKey);
+      // Procurar nas chaves de terceiros pelo senderPublicKey (case insensitive)
+      int keyIndex = _keyService.thirdPartyKeys.indexWhere((key) =>
+          key.publicKey.toLowerCase() == message.senderPublicKey.toLowerCase());
 
       if (keyIndex >= 0) {
         // Se encontrou a chave, usar o nome do contato
