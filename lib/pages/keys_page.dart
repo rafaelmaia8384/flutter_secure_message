@@ -734,9 +734,9 @@ class _KeysPageState extends State<KeysPage> {
                   children: [
                     const Icon(Icons.key, size: 24),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Encryption Keys Guide',
-                      style: TextStyle(
+                    Text(
+                      'encryption_keys_guide'.tr,
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -758,44 +758,28 @@ class _KeysPageState extends State<KeysPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildHelpTopic(
-                          'What are encryption keys?',
-                          'Encryption keys are digital codes used to encrypt and decrypt messages. They ensure that only the intended recipient can read the messages you send.',
+                          'what_are_encryption_keys'.tr,
+                          'encryption_keys_description'.tr,
                         ),
                         _buildHelpTopic(
-                          'Public vs Private Keys',
-                          'This app uses asymmetric encryption with key pairs:\n'
-                              '• Private Key: Kept secret on your device. Never share it.\n'
-                              '• Public Key: Can be shared with others who want to send you encrypted messages.',
+                          'public_vs_private'.tr,
+                          'public_vs_private_description'.tr,
                         ),
                         _buildHelpTopic(
-                          'How encryption works',
-                          'When you send a message:\n'
-                              '1. Your message is encrypted using the recipient\'s public key\n'
-                              '2. Only the recipient\'s private key can decrypt it\n'
-                              '3. Not even you can decrypt the message once sent',
+                          'how_encryption_works'.tr,
+                          'how_encryption_works_description'.tr,
                         ),
                         _buildHelpTopic(
-                          'Sharing your public key',
-                          'Share your public key with others so they can send you encrypted messages. You can share it via:\n'
-                              '• QR Code\n'
-                              '• Copy & Paste\n'
-                              '• Share button\n\n'
-                              'Your public key is safe to share - it cannot be used to decrypt messages.',
+                          'sharing_public_key'.tr,
+                          'sharing_public_key_description'.tr,
                         ),
                         _buildHelpTopic(
-                          'Managing others\' keys',
-                          'Add public keys from your contacts to send them encrypted messages. You can:\n'
-                              '• Scan their QR code\n'
-                              '• Enter their key manually\n'
-                              '• Give them a recognizable name',
+                          'managing_others_keys'.tr,
+                          'managing_others_keys_description'.tr,
                         ),
                         _buildHelpTopic(
-                          'Security best practices',
-                          '• Generate a new key pair if you suspect your device is compromised\n'
-                              '• You can replace your keys, but remember that previously encrypted messages can only be decrypted with the original key\n'
-                              '• Never share your private key with anyone\n'
-                              '• Verify the identity of people whose public keys you add\n'
-                              '• Always use secure channels when sharing public keys',
+                          'security_best_practices'.tr,
+                          'security_best_practices_description'.tr,
                         ),
                       ],
                     ),
@@ -809,7 +793,7 @@ class _KeysPageState extends State<KeysPage> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () => Get.back(),
-                    child: const Text('Got it'),
+                    child: Text('got_it'.tr),
                   ),
                 ),
               ),

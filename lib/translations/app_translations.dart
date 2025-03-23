@@ -177,6 +177,28 @@ class AppTranslations extends Translations {
           'keys_replaced': 'Encryption keys replaced successfully',
           'error_replacing_keys': 'Failed to replace encryption keys',
           'replace': 'Replace',
+
+          // Encryption Keys Guide translations
+          'encryption_keys_guide': 'Encryption Keys Guide',
+          'got_it': 'Got it',
+          'what_are_encryption_keys': 'What are encryption keys?',
+          'encryption_keys_description':
+              'Encryption keys are digital codes used to encrypt and decrypt messages. They ensure that only the intended recipient can read the messages you send.',
+          'public_vs_private': 'Public vs Private Keys',
+          'public_vs_private_description':
+              'This app uses asymmetric encryption with key pairs:\n• Private Key: Kept secret on your device. Never share it.\n• Public Key: Can be shared with others who want to send you encrypted messages.',
+          'how_encryption_works': 'How encryption works',
+          'how_encryption_works_description':
+              'When you create a message:\n1. Your message is encrypted using the recipient\'s public key\n2. Only the recipient\'s private key can decrypt it',
+          'sharing_public_key': 'Sharing your public key',
+          'sharing_public_key_description':
+              'Share your public key with others so they can send you encrypted messages. You can share it via:\n• QR Code\n• Copy & Paste\n• Share button\n\nYour public key is safe to share - it cannot be used to decrypt messages.',
+          'managing_others_keys': 'Managing others\' keys',
+          'managing_others_keys_description':
+              'Add public keys from your contacts to send them encrypted messages. You can:\n• Scan their QR code\n• Enter their key manually\n• Give them a recognizable name',
+          'security_best_practices': 'Security best practices',
+          'security_best_practices_description':
+              '• Generate a new key pair if you suspect your device is compromised\n• You can replace your keys, but remember that previously encrypted messages can only be decrypted with the original key\n• Never share your private key with anyone\n• Verify the identity of people whose public keys you add\n• Always use secure channels when sharing public keys',
         },
       };
 }
