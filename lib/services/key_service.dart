@@ -257,6 +257,11 @@ class KeyService extends GetxService {
     }
   }
 
+  bool isValidPublicKey(String key) {
+    // Reuse the key format validation logic
+    return _isValidKeyFormat(key);
+  }
+
   String encryptMessage(String message, String recipientPublicKey) {
     try {
       if (recipientPublicKey.isEmpty) {

@@ -380,7 +380,17 @@ class _KeysPageState extends State<KeysPage> {
     );
 
     if (result != null && result.isNotEmpty) {
-      // Show dialog to get contact name
+      // Verify if the scanned key is valid
+      if (!_keyService.isValidPublicKey(result)) {
+        Get.snackbar(
+          'error'.tr,
+          'invalid_key'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      // Show dialog to get contact name and display the scanned key
       final nameController = TextEditingController();
       final formKey = GlobalKey<FormState>();
 
@@ -389,19 +399,37 @@ class _KeysPageState extends State<KeysPage> {
           title: Text('enter_contact_name'.tr),
           content: Form(
             key: formKey,
-            child: TextFormField(
-              controller: nameController,
-              decoration: InputDecoration(
-                labelText: 'contact_name'.tr,
-                hintText: 'enter_contact_name'.tr,
-                hintStyle: TextStyle(color: Colors.grey),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'contact_name_required'.tr;
-                }
-                return null;
-              },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: 'contact_name'.tr,
+                    hintText: 'enter_contact_name'.tr,
+                    hintStyle: const TextStyle(color: Colors.grey),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'contact_name_required'.tr;
+                    }
+                    return null;
+                  },
+                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: TextEditingController(text: result.toUpperCase()),
+                  decoration: InputDecoration(
+                    labelText: 'scanned_key'.tr,
+                    border: const OutlineInputBorder(),
+                  ),
+                  readOnly: true,
+                  enabled: false,
+                  maxLines: 3,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
             ),
           ),
           actions: [
@@ -428,6 +456,16 @@ class _KeysPageState extends State<KeysPage> {
   }
 
   void _addThirdPartyKey(String publicKeyString, String name) {
+    // Check if the public key is valid
+    if (!_keyService.isValidPublicKey(publicKeyString)) {
+      Get.snackbar(
+        'error'.tr,
+        'invalid_key'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
     // Check if key already exists
     bool keyExists = _keyService.thirdPartyKeys.any(
         (key) => key.publicKey.toLowerCase() == publicKeyString.toLowerCase());
@@ -459,7 +497,7 @@ class _KeysPageState extends State<KeysPage> {
     } else {
       Get.snackbar(
         'error'.tr,
-        'invalid_key'.tr,
+        'error_adding_key'.tr,
         snackPosition: SnackPosition.BOTTOM,
       );
     }
