@@ -20,13 +20,11 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
-  late AnimationController _animationController;
   late TabController _tabController;
   final RxInt _previousMessageCount = 0.obs;
   final MessageService _messageService = Get.put(MessageService());
   final AppController _appController = Get.find<AppController>();
   final KeyService _keyService = Get.find<KeyService>();
-  Worker? _animationWorker;
   final RxBool _isLoading = false.obs;
   final RxInt _selectedTabIndex = 0.obs; // Track the selected tab index
 
@@ -34,13 +32,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    // Initialize animation controller
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-
-    // Initialize the tab controller with the same ticker provider
+    // Initialize tab controller with the same ticker provider
     _tabController = TabController(
       length: 2,
       vsync: this,
@@ -57,20 +49,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     // Inicializar o contador de mensagens
     _previousMessageCount.value = _messageService.messages.length;
 
-    // Iniciar a animação quando a página é construída
+    // Carregar mensagens quando a página é construída
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadMessagesWithDelay();
-        _animationController.forward();
-      }
-    });
-
-    // Observar mudanças na variável shouldAnimateNewMessages
-    _animationWorker =
-        ever(_appController.shouldAnimateNewMessages, (shouldAnimate) {
-      if (shouldAnimate && mounted) {
-        _animationController.reset();
-        _animationController.forward();
       }
     });
   }
@@ -94,12 +76,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
 
       _isLoading.value = false;
-
-      // Atualizar o contador e animar se novas mensagens foram carregadas
-      if (_messageService.messages.length > _previousMessageCount.value) {
-        _previousMessageCount.value = _messageService.messages.length;
-        _appController.triggerMessageAnimation();
-      }
+      _previousMessageCount.value = _messageService.messages.length;
     } else {
       // Se não houver mensagens, apenas carregar sem mostrar indicador
       await _messageService.loadMessages();
@@ -111,13 +88,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     // Dispose tab controller
     _tabController.dispose();
-
-    // Remover o listener antes de descartar o controller
-    _animationWorker?.dispose();
-
-    // Garantir que a animação seja interrompida antes de descartar
-    _animationController.stop();
-    _animationController.dispose();
     super.dispose();
   }
 
@@ -203,8 +173,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       );
     } else {
-      Get.to(() => const NewMessagePage())?.then((_) async {
-        await _loadMessagesWithDelay();
+      Get.to(() => const NewMessagePage())?.then((result) async {
+        // Only reload if a new message was created (result is true)
+        if (result == true) {
+          await _messageService.loadMessages();
+        }
       });
     }
   }
@@ -230,16 +203,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ],
           ),
         );
-      }
-
-      // Verificar se novas mensagens foram adicionadas desde a última verificação
-      if (_messageService.messages.length > _previousMessageCount.value) {
-        // Como há novas mensagens, atualizar a contagem e sinalizar para animar
-        _previousMessageCount.value = _messageService.messages.length;
-        _appController.triggerMessageAnimation();
-      } else {
-        // Apenas atualizar o contador
-        _previousMessageCount.value = _messageService.messages.length;
       }
 
       // Filter messages based on tab
@@ -290,33 +253,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       // Sort by creation date (newest first)
       filteredMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-      return RefreshIndicator(
-        onRefresh: _loadMessagesWithDelay,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(12.0),
-          itemCount: filteredMessages.length,
-          itemBuilder: (context, index) {
-            final message = filteredMessages[index];
-
-            // Animation logic
-            if (!_appController.shouldAnimateNewMessages.value ||
-                !mounted ||
-                _animationController.status == AnimationStatus.dismissed) {
-              return _buildChatBubble(message);
-            }
-
-            // Last item added should animate
-            if (index == 0 && _appController.shouldAnimateNewMessages.value) {
-              return AnimatedItemWidget(
-                controller: _animationController,
-                startInterval: 0.0,
-                child: _buildChatBubble(message),
-              );
-            }
-
-            return _buildChatBubble(message);
-          },
-        ),
+      return ListView.builder(
+        padding: const EdgeInsets.all(12.0),
+        itemCount: filteredMessages.length,
+        itemBuilder: (context, index) {
+          final message = filteredMessages[index];
+          return _buildChatBubble(message);
+        },
       );
     });
   }
@@ -623,55 +566,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       );
     } else {
       // Se possuir chave própria, prosseguir com a importação
-      Get.to(() => const ImportMessagePage());
+      Get.to(() => const ImportMessagePage())?.then((result) async {
+        // Only reload if a new message was imported (result is true)
+        if (result == true) {
+          await _messageService.loadMessages();
+        }
+      });
     }
-  }
-}
-
-// Widget que anima a entrada de um item na lista
-class AnimatedItemWidget extends StatelessWidget {
-  final AnimationController controller;
-  final Widget child;
-  final double startInterval;
-
-  const AnimatedItemWidget({
-    Key? key,
-    required this.controller,
-    required this.child,
-    this.startInterval = 0.0,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    // Verificar se o controller ainda está ativo
-    if (!controller.isAnimating &&
-        controller.status == AnimationStatus.dismissed) {
-      return child;
-    }
-
-    // Criar uma animação que começa após o intervalo definido
-    // e termina um pouco depois
-    final Animation<double> animation = CurvedAnimation(
-      parent: controller,
-      curve: Interval(
-        startInterval, // Início da animação (0.0 a 1.0)
-        startInterval + 0.4, // Fim da animação (startInterval + duração)
-        curve: Curves.easeOut,
-      ),
-    );
-
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, child) {
-        return Opacity(
-          opacity: animation.value,
-          child: Transform.translate(
-            offset: Offset(0.0, 30 * (1.0 - animation.value)),
-            child: child,
-          ),
-        );
-      },
-      child: child,
-    );
   }
 }
