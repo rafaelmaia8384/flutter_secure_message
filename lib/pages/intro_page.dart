@@ -1,11 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../services/auth_service.dart';
+import '../services/key_service.dart';
 
 class IntroPage extends StatelessWidget {
   final AuthService _authService = Get.find<AuthService>();
+  final KeyService _keyService = Get.find<KeyService>();
 
   IntroPage({super.key});
+
+  // Method to check and generate keys if needed
+  Future<void> _ensureKeysExist() async {
+    // Check if keys already exist
+    if (!_keyService.hasKeys.value) {
+      // Keys don't exist, show loading dialog
+      Get.dialog(
+        AlertDialog(
+          title: Text('generating_keys'.tr),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text('please_wait'.tr),
+            ],
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      try {
+        // Generate new keys
+        final result = await _keyService.generateNewKeys();
+
+        // Close the dialog
+        Get.back();
+
+        if (!result) {
+          // If key generation failed, show error dialog
+          Get.dialog(
+            AlertDialog(
+              title: Text('error'.tr),
+              content: Text('key_generation_failed'.tr),
+              actions: [
+                TextButton(
+                  onPressed: () => Get.back(),
+                  child: Text('ok'.tr),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // Navigate to home page on success
+          Get.offNamed('/home');
+        }
+      } catch (e) {
+        // Close dialog if open
+        if (Get.isDialogOpen ?? false) {
+          Get.back();
+        }
+
+        // Show error dialog
+        Get.dialog(
+          AlertDialog(
+            title: Text('error'.tr),
+            content: Text('key_generation_error'.tr + ': $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(),
+                child: Text('ok'.tr),
+              ),
+            ],
+          ),
+        );
+      }
+    } else {
+      // Keys already exist, navigate to home page
+      Get.offNamed('/home');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +158,8 @@ class IntroPage extends StatelessWidget {
                     onPressed: () async {
                       final success = await _authService.authenticate();
                       if (success) {
-                        Get.offNamed('/home');
+                        // Check and generate keys if needed before navigation
+                        await _ensureKeysExist();
                       }
                     },
                     child: Text('authenticate'.tr),

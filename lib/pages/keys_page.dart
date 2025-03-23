@@ -140,9 +140,9 @@ class _KeysPageState extends State<KeysPage> {
                             tooltip: 'show_qr'.tr,
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete_forever),
-                            onPressed: () => _showDeleteKeyDialog(),
-                            tooltip: 'delete_key'.tr,
+                            icon: const Icon(Icons.refresh),
+                            onPressed: () => _showReplaceKeyDialog(),
+                            tooltip: 'replace_key'.tr,
                           ),
                         ],
                       ),
@@ -562,11 +562,11 @@ class _KeysPageState extends State<KeysPage> {
     );
   }
 
-  Future<void> _showDeleteKeyDialog() async {
+  Future<void> _showReplaceKeyDialog() async {
     final result = await Get.dialog<bool>(
       AlertDialog(
-        title: Text('delete_key_title'.tr),
-        content: Text('delete_key_warning'.tr),
+        title: Text('replace_key_title'.tr),
+        content: Text('replace_key_warning'.tr),
         actions: [
           TextButton(
             onPressed: () => Get.back(result: false),
@@ -574,9 +574,9 @@ class _KeysPageState extends State<KeysPage> {
           ),
           TextButton(
             onPressed: () => Get.back(result: true),
-            child: Text('delete'.tr),
+            child: Text('replace'.tr),
             style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
+              foregroundColor: Colors.orange,
             ),
           ),
         ],
@@ -585,7 +585,58 @@ class _KeysPageState extends State<KeysPage> {
 
     if (result == true) {
       _appController.updateLastActiveTime();
-      await _deleteKeys();
+      await _replaceKeys();
+    }
+  }
+
+  Future<void> _replaceKeys() async {
+    // Show loading dialog
+    Get.dialog(
+      AlertDialog(
+        title: Text('generating_keys'.tr),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text('please_wait'.tr),
+          ],
+        ),
+      ),
+      barrierDismissible: false,
+    );
+
+    try {
+      // Generate new keys directly without deleting first
+      final success = await _keyService.generateNewKeys();
+
+      // Close the dialog
+      Get.back();
+
+      if (success) {
+        Get.snackbar(
+          'success'.tr,
+          'keys_replaced'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } else {
+        Get.snackbar(
+          'error'.tr,
+          'error_replacing_keys'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } catch (e) {
+      // Close dialog if still open
+      if (Get.isDialogOpen ?? false) {
+        Get.back();
+      }
+
+      Get.snackbar(
+        'error'.tr,
+        'error_replacing_keys'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 
@@ -625,23 +676,6 @@ class _KeysPageState extends State<KeysPage> {
       Get.snackbar(
         'error'.tr,
         'error_generating_keys'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    }
-  }
-
-  Future<void> _deleteKeys() async {
-    final success = await _keyService.deleteKeys();
-    if (success) {
-      Get.snackbar(
-        'success'.tr,
-        'keys_deleted'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } else {
-      Get.snackbar(
-        'error'.tr,
-        'error_deleting_keys'.tr,
         snackPosition: SnackPosition.BOTTOM,
       );
     }
@@ -720,6 +754,7 @@ class _KeysPageState extends State<KeysPage> {
                         _buildHelpTopic(
                           'Security best practices',
                           '• Generate a new key pair if you suspect your device is compromised\n'
+                              '• You can replace your keys, but remember that previously encrypted messages can only be decrypted with the original key\n'
                               '• Never share your private key with anyone\n'
                               '• Verify the identity of people whose public keys you add\n'
                               '• Always use secure channels when sharing public keys',

@@ -164,6 +164,20 @@ class AppTranslations extends Translations {
               'Create a new encrypted message to send to your contacts',
           'no_imported_messages_description':
               'Import an encrypted message that was shared with you',
+          'generating_keys': 'Generating Keys',
+          'please_wait':
+              'Please wait while we generate your encryption keys...',
+          'key_generation_failed':
+              'Failed to generate encryption keys. Please try again.',
+          'key_generation_error': 'An error occurred while generating keys',
+          'ok': 'OK',
+          'replace_key': 'Replace Key',
+          'replace_key_title': 'Replace Encryption Key',
+          'replace_key_warning':
+              'Are you sure you want to replace your encryption key? This action cannot be undone and any previously encrypted messages will no longer be decryptable with the new key. Make sure you have saved any important messages.',
+          'keys_replaced': 'Encryption keys replaced successfully',
+          'error_replacing_keys': 'Failed to replace encryption keys',
+          'replace': 'Replace',
         },
       };
 }
