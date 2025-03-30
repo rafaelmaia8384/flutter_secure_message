@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
-import 'dart:convert';
 import '../controllers/app_controller.dart';
 import '../services/key_service.dart';
 import '../services/message_service.dart';
@@ -9,7 +8,6 @@ import 'new_message_page.dart';
 import 'import_message_page.dart';
 import '../models/encrypted_message.dart';
 import '../widgets/action_button.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'dart:math' as math;
 
