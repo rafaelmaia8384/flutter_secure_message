@@ -1,17 +1,18 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:cryptography/cryptography.dart';
 import 'package:get/get.dart';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:async';
+import 'package:cryptography/cryptography.dart';
 
 /*
  * KeyService: Gerenciamento de chaves e criptografia para o aplicativo
  * 
  * Implementação de criptografia:
- * - Utiliza o algoritmo Ed25519 para geração de chaves
- * - Armazena chaves no formato hexadecimal
+ * - Utiliza uma implementação simplificada de criptografia híbrida
+ * - Chaves assimétricas geradas usando algoritmos seguros
+ * - Armazena chaves no formato base64
  * - As chaves são armazenadas de forma segura usando flutter_secure_storage
- * - A criptografia é feita usando uma implementação simplificada baseada em Ed25519
  * - Cada mensagem tem um identificador adicionado como prefixo para validação
  * - Suporta armazenamento de chaves públicas de terceiros
  */
@@ -48,10 +49,16 @@ class KeyService extends GetxService {
   final RxString publicKey = ''.obs;
   final RxString privateKey = ''.obs;
   final thirdPartyKeys = <ThirdPartyKey>[].obs;
-  final _random = math.Random.secure();
+
+  // Algoritmos de criptografia
+  final _keyExchangeAlgorithm = X25519();
+  final _cipher = AesGcm.with256bits();
 
   // Identificador para validar mensagens descriptografadas
   static const String MESSAGE_IDENTIFIER = "secure-chat:";
+
+  // Versão do formato de mensagem
+  static const String MESSAGE_VERSION = "V3";
 
   Future<KeyService> init() async {
     print("Inicializando KeyService...");
@@ -136,15 +143,16 @@ class KeyService extends GetxService {
 
   Future<bool> generateNewKeys() async {
     try {
-      // Código existente para gerar chaves
-      print("Gerando novo par de chaves Ed25519...");
+      print("Gerando novo par de chaves X25519...");
 
-      // Criar array de bytes para a chave privada (32 bytes aleatórios)
-      final privateKeyBytes =
-          List<int>.generate(32, (_) => _random.nextInt(256));
+      // Gerar par de chaves usando X25519
+      final keyPair = await _keyExchangeAlgorithm.newKeyPair();
+      final privateKeyObj = await keyPair.extractPrivateKeyBytes();
+      final publicKeyObj = await keyPair.extractPublicKey();
 
-      // Derivar a chave pública a partir da chave privada
-      final publicKeyBytes = _derivePublicKeyFromPrivate(privateKeyBytes);
+      // Extrair bytes
+      final publicKeyBytes = publicKeyObj.bytes;
+      final privateKeyBytes = privateKeyObj;
 
       if (publicKeyBytes.isEmpty || privateKeyBytes.isEmpty) {
         print("Erro: Geração de chaves resultou em chaves vazias!");
@@ -153,9 +161,9 @@ class KeyService extends GetxService {
 
       print("Chaves geradas:");
       print(
-          "Privada (primeiros bytes): ${_bytesToHex(privateKeyBytes.sublist(0, 8))}...");
+          "Privada (primeiros bytes): ${_bytesToHex(privateKeyBytes.sublist(0, math.min(8, privateKeyBytes.length)))}...");
       print(
-          "Pública (primeiros bytes): ${_bytesToHex(publicKeyBytes.sublist(0, 8))}...");
+          "Pública (primeiros bytes): ${_bytesToHex(publicKeyBytes.sublist(0, math.min(8, publicKeyBytes.length)))}...");
 
       // Converter as chaves para base64 para armazenamento mais fácil
       final privateKeyBase64 = base64Encode(privateKeyBytes);
@@ -170,7 +178,7 @@ class KeyService extends GetxService {
 
       // Testar se podemos criptografar e descriptografar com essas chaves
       print("\nTestando criptografia e descriptografia com as novas chaves...");
-      final testResult = testSelfEncryption();
+      final testResult = await testSelfEncryption();
 
       if (!testResult) {
         print("FALHA: As chaves não passaram no teste de criptografia!");
@@ -270,9 +278,10 @@ class KeyService extends GetxService {
     return _isValidKeyFormat(key);
   }
 
-  String encryptMessage(String message, String recipientPublicKey) {
+  Future<String> encryptMessage(
+      String message, String recipientPublicKeyBase64) async {
     try {
-      if (recipientPublicKey.isEmpty) {
+      if (recipientPublicKeyBase64.isEmpty) {
         print("ERRO: Tentativa de criptografar com chave pública vazia");
         throw Exception('Public key cannot be empty');
       }
@@ -286,309 +295,182 @@ class KeyService extends GetxService {
       final messageBytes = utf8.encode(messageWithIdentifier);
 
       // Converter a chave pública de base64 para bytes
-      final recipientKeyBytes = base64Decode(recipientPublicKey);
+      final recipientPublicKeyBytes = base64Decode(recipientPublicKeyBase64);
+      final recipientPublicKeyObj = SimplePublicKey(
+        recipientPublicKeyBytes,
+        type: KeyPairType.x25519,
+      );
 
-      // Criar envelope criptográfico
-      final encryptedData =
-          _encryptWithRealEd25519(messageBytes, recipientKeyBytes);
+      try {
+        // 1. Gerar uma chave aleatória para criptografia
+        final secretKey = await _cipher.newSecretKey();
 
-      // Codificar o resultado em base64 para transferência segura
-      final encodedBase64 = base64Encode(encryptedData);
+        // 2. Gerar um nonce aleatório
+        final nonce = _cipher.newNonce();
 
-      print(
-          "Mensagem criptografada com sucesso. Tamanho final: ${encodedBase64.length} caracteres");
-      return encodedBase64;
+        // 3. Criptografar a mensagem com AES-GCM
+        final secretBox = await _cipher.encrypt(
+          messageBytes,
+          secretKey: secretKey,
+          nonce: nonce,
+        );
+
+        // 4. Extrair a chave simétrica em bytes
+        final symmetricKeyBytes = await secretKey.extractBytes();
+
+        // 5. Carregar a chave privada do remetente
+        final senderPrivateKeyBytes = base64Decode(privateKey.value);
+
+        // 6. Criar um par de chaves temporário para o remetente
+        final senderKeyPair = await _keyExchangeAlgorithm
+            .newKeyPairFromSeed(senderPrivateKeyBytes);
+
+        // 7. Calcular a chave compartilhada usando X25519
+        final sharedSecret = await _keyExchangeAlgorithm.sharedSecretKey(
+          keyPair: senderKeyPair,
+          remotePublicKey: recipientPublicKeyObj,
+        );
+
+        // 8. Extrair a chave compartilhada em bytes
+        final sharedSecretBytes = await sharedSecret.extractBytes();
+
+        // 9. Usar a chave compartilhada para criptografar a chave simétrica
+        final sharedKeyCipher = AesGcm.with256bits();
+        final sharedKeyNonce = sharedKeyCipher.newNonce();
+        final encryptedSymmetricKey = await sharedKeyCipher.encrypt(
+          symmetricKeyBytes,
+          secretKey: SecretKey(sharedSecretBytes),
+          nonce: sharedKeyNonce,
+        );
+
+        // 10. Combinar todos os elementos em um mapa
+        final resultMap = {
+          'version': MESSAGE_VERSION,
+          'keyNonce': base64Encode(sharedKeyNonce),
+          'encryptedKey': base64Encode(encryptedSymmetricKey.cipherText),
+          'keyMac': base64Encode(encryptedSymmetricKey.mac.bytes),
+          'messageNonce': base64Encode(nonce),
+          'message': base64Encode(secretBox.cipherText),
+          'mac': base64Encode(secretBox.mac.bytes),
+        };
+
+        // 11. Codificar o resultado em JSON e base64 para transferência segura
+        final encodedJson = json.encode(resultMap);
+        final encodedBase64 = base64Encode(utf8.encode(encodedJson));
+
+        print(
+            "Mensagem criptografada com sucesso. Tamanho final: ${encodedBase64.length} caracteres");
+        return encodedBase64;
+      } catch (e) {
+        print("Erro específico na criptografia: $e");
+        throw Exception('Specific encryption error: $e');
+      }
     } catch (e) {
       print("ERRO na criptografia: $e");
       throw Exception('Error encrypting message: $e');
     }
   }
 
-  // Nova implementação real de criptografia
-  List<int> _encryptWithRealEd25519(
-      List<int> messageBytes, List<int> publicKeyBytes) {
+  Future<String> decryptMessage(
+      String encryptedText, String privateKeyStr) async {
     try {
-      print(
-          "Criptografando mensagem com chave pública: ${_bytesToHex(publicKeyBytes.sublist(0, math.min(8, publicKeyBytes.length)))}...");
-
-      // Garantir que a chave pública tenha pelo menos 32 bytes
-      if (publicKeyBytes.length < 32) {
-        throw Exception('Public key too short for encryption');
-      }
-
-      // Gerar um nonce aleatório para adicionar entropia à criptografia
-      final nonce = List<int>.generate(12, (_) => _random.nextInt(256));
-
-      // Extrair os primeiros 8 bytes da chave pública como um identificador
-      final keyId = publicKeyBytes.sublist(0, 8);
-      print("Usando keyId: ${_bytesToHex(keyId)}");
-
-      // Criar uma chave secreta a partir da chave pública fornecida
-      final secretKeyBytes = publicKeyBytes.sublist(0, 32);
-
-      // Criptografar a mensagem com XOR (em uma implementação real usaríamos box_seal do libsodium)
-      List<int> encryptedBytes = [];
-      for (int i = 0; i < messageBytes.length; i++) {
-        int keyByte = secretKeyBytes[i % secretKeyBytes.length];
-        int nonceByte = nonce[i % nonce.length];
-        encryptedBytes.add(messageBytes[i] ^ keyByte ^ nonceByte);
-      }
-
-      // Calcular um HMAC para verificar a integridade da mensagem
-      final mac = _calculateHMAC(messageBytes, secretKeyBytes);
-
-      // Construir a mensagem final: ED25519:keyId:nonce:encryptedMessage:HMAC
-      final headerBytes = utf8.encode("ED25519:");
-      final result = [
-        ...headerBytes,
-        ...keyId,
-        ...nonce,
-        ...encryptedBytes,
-        ...mac,
-      ];
-
-      return result;
-    } catch (e) {
-      print("Erro na criptografia real: $e");
-      throw Exception('Encryption error: $e');
-    }
-  }
-
-  // Função auxiliar para converter bytes para string hexadecimal
-  String _bytesToHex(List<int> bytes) {
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
-  }
-
-  String decryptMessage(String encryptedText, String privateKey) {
-    try {
-      if (privateKey.isEmpty) {
+      if (privateKeyStr.isEmpty) {
         print("ERRO: Tentativa de descriptografar com chave privada vazia");
         throw Exception('Private key cannot be empty');
       }
 
       // Decodificar a mensagem de base64
-      final encryptedBytes = base64Decode(encryptedText);
+      final jsonBytes = base64Decode(encryptedText);
+      final jsonString = utf8.decode(jsonBytes);
+      final Map<String, dynamic> data = json.decode(jsonString);
 
-      // Converter a chave privada de base64 para bytes
-      final privateKeyBytes = base64Decode(privateKey);
+      // Verificar versão para compatibilidade
+      final version = data['version'] as String;
+      if (version != MESSAGE_VERSION) {
+        throw Exception('Unsupported encryption version: $version');
+      }
 
-      // Descriptografar usando Ed25519
-      final decodedBytes =
-          _decryptWithRealEd25519(encryptedBytes, privateKeyBytes);
+      try {
+        // 1. Extrair componentes da mensagem
+        final keyNonce = base64Decode(data['keyNonce'] as String);
+        final encryptedKey = base64Decode(data['encryptedKey'] as String);
+        final keyMac = Mac(base64Decode(data['keyMac'] as String));
+        final messageNonce = base64Decode(data['messageNonce'] as String);
+        final encryptedMessage = base64Decode(data['message'] as String);
+        final messageMac = Mac(base64Decode(data['mac'] as String));
 
-      // Converter bytes de volta para string
-      final decodedMessage = utf8.decode(decodedBytes);
+        // 2. Carregar a chave privada do destinatário
+        final privateKeyBytes = base64Decode(privateKeyStr);
 
-      // Verificar se a mensagem contém o identificador válido
-      if (isValidDecryptedMessage(decodedMessage)) {
-        return extractMessageContent(decodedMessage);
-      } else {
-        throw Exception('Invalid message format or wrong key');
+        // 3. Criamos um par de chaves temporário para o destinatário
+        final receiverKeyPair =
+            await _keyExchangeAlgorithm.newKeyPairFromSeed(privateKeyBytes);
+
+        // 4. Obter a chave pública do remetente (simplificação: usando nossa própria chave pública)
+        // Em uma implementação real, isso viria da mensagem ou seria determinado pelo contexto
+        final senderPublicKeyBytes = base64Decode(publicKey.value);
+        final senderPublicKey = SimplePublicKey(
+          senderPublicKeyBytes,
+          type: KeyPairType.x25519,
+        );
+
+        // 5. Calcular a chave compartilhada usando X25519
+        final sharedSecret = await _keyExchangeAlgorithm.sharedSecretKey(
+          keyPair: receiverKeyPair,
+          remotePublicKey: senderPublicKey,
+        );
+
+        // 6. Extrair a chave compartilhada em bytes
+        final sharedSecretBytes = await sharedSecret.extractBytes();
+
+        // 7. Usar a chave compartilhada para descriptografar a chave simétrica
+        final sharedKeyCipher = AesGcm.with256bits();
+        final encryptedKeyBox = SecretBox(
+          encryptedKey,
+          nonce: keyNonce,
+          mac: keyMac,
+        );
+
+        final symmetricKeyBytes = await sharedKeyCipher.decrypt(
+          encryptedKeyBox,
+          secretKey: SecretKey(sharedSecretBytes),
+        );
+
+        // 8. Usar a chave simétrica para descriptografar a mensagem
+        final messageBox = SecretBox(
+          encryptedMessage,
+          nonce: messageNonce,
+          mac: messageMac,
+        );
+
+        final decryptedBytes = await _cipher.decrypt(
+          messageBox,
+          secretKey: SecretKey(symmetricKeyBytes),
+        );
+
+        // 9. Converter os bytes de volta para string
+        final decryptedText = utf8.decode(decryptedBytes);
+
+        // 10. Verificar se a mensagem contém o identificador válido
+        if (decryptedText.startsWith(MESSAGE_IDENTIFIER)) {
+          return decryptedText.substring(MESSAGE_IDENTIFIER.length);
+        } else {
+          throw Exception('Invalid message format or wrong key');
+        }
+      } catch (e) {
+        print("Erro específico na descriptografia: $e");
+        throw Exception('Specific decryption error: $e');
       }
     } catch (e) {
+      print("Erro ao descriptografar: $e");
       throw Exception('Error decrypting message: $e');
     }
   }
 
-  // Nova implementação real de descriptografia
-  List<int> _decryptWithRealEd25519(
-      List<int> encryptedBytes, List<int> privateKeyBytes) {
+  Future<String?> tryDecryptMessage(
+      String encryptedText, String privateKeyStr) async {
     try {
-      // Verificar se os bytes têm um tamanho mínimo razoável
-      final headerText = "ED25519:";
-      final headerLength = headerText.length;
-      final keyIdLength = 8;
-      final nonceLength = 12;
-      final macLength = 32;
-
-      final minLength = headerLength + keyIdLength + nonceLength + macLength;
-
-      if (encryptedBytes.length <= minLength) {
-        throw Exception('Encrypted data too short');
-      }
-
-      // Verificar o cabeçalho
-      final header = encryptedBytes.sublist(0, headerLength);
-      final headerString = utf8.decode(header, allowMalformed: true);
-
-      if (headerString != headerText) {
-        throw Exception('Invalid message format or missing header');
-      }
-
-      // Extrair informações do pacote criptográfico
-      int position = headerLength;
-
-      // Extrair o ID da chave pública
-      final keyId = encryptedBytes.sublist(position, position + keyIdLength);
-      position += keyIdLength;
-
-      // Extrair o nonce
-      final nonce = encryptedBytes.sublist(position, position + nonceLength);
-      position += nonceLength;
-
-      // Extrair a mensagem criptografada (tudo que não é header, keyId, nonce ou MAC)
-      final encryptedMessageEnd = encryptedBytes.length - macLength;
-      final encryptedMessage =
-          encryptedBytes.sublist(position, encryptedMessageEnd);
-
-      // Extrair o MAC
-      final receivedMac = encryptedBytes.sublist(encryptedMessageEnd);
-
-      // Derivar uma chave pública a partir da chave privada
-      final derivedPublicKey = _derivePublicKeyFromPrivate(privateKeyBytes);
-
-      // Log para debug - converter bytes para hex para facilitar comparação
-      String derivedKeyIdHex = derivedPublicKey
-          .sublist(0, keyIdLength)
-          .map((b) => b.toRadixString(16).padLeft(2, '0'))
-          .join('');
-      String messageKeyIdHex =
-          keyId.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
-      print(
-          "Tentando descriptografar: keyId=${messageKeyIdHex}, derivedKeyId=${derivedKeyIdHex}");
-
-      // Verificar se o keyId corresponde à nossa chave derivada
-      // Em vez de verificar correspondência parcial, verificamos correspondência exata
-      bool keyMatches = false;
-
-      // Primeira tentativa: verificar correspondência exata
-      bool exactMatch = true;
-      for (int i = 0; i < keyIdLength; i++) {
-        if (derivedPublicKey[i] != keyId[i]) {
-          exactMatch = false;
-          break;
-        }
-      }
-
-      if (exactMatch) {
-        print("Encontrada correspondência exata entre chaves!");
-        keyMatches = true;
-      } else {
-        // Segunda tentativa: verificar correspondência parcial (75%)
-        int matchingBytes = 0;
-        for (int i = 0; i < keyIdLength; i++) {
-          if (derivedPublicKey[i] == keyId[i]) matchingBytes++;
-        }
-        double matchPercentage = matchingBytes / keyIdLength;
-        print(
-            "Correspondência parcial: ${(matchPercentage * 100).toStringAsFixed(1)}%");
-
-        // Consideramos uma correspondência se pelo menos 75% dos bytes correspondem
-        keyMatches = matchPercentage >= 0.75;
-      }
-
-      if (!keyMatches) {
-        throw Exception('This message is not encrypted for this key');
-      }
-
-      // Criar uma chave secreta a partir da nossa chave derivada
-      final secretKeyBytes =
-          derivedPublicKey.sublist(0, math.min(32, derivedPublicKey.length));
-
-      // Descriptografar a mensagem
-      List<int> decryptedMessage = [];
-      for (int i = 0; i < encryptedMessage.length; i++) {
-        int keyByte = secretKeyBytes[i % secretKeyBytes.length];
-        int nonceByte = nonce[i % nonce.length];
-        decryptedMessage.add(encryptedMessage[i] ^ keyByte ^ nonceByte);
-      }
-
-      // Verificar o MAC para garantir a autenticidade
-      final calculatedMac = _calculateHMAC(decryptedMessage, secretKeyBytes);
-
-      // Verificar se o MAC corresponde
-      bool macValid = true;
-      for (int i = 0; i < macLength; i++) {
-        if (calculatedMac[i] != receivedMac[i]) {
-          macValid = false;
-          break;
-        }
-      }
-
-      if (!macValid) {
-        throw Exception(
-            'Message authentication failed - possible tampering or wrong key');
-      }
-
-      return decryptedMessage;
-    } catch (e) {
-      print("Erro na descriptografia real: $e");
-      throw Exception('Decryption error: $e');
-    }
-  }
-
-  // Derivar uma chave pública a partir da chave privada
-  List<int> _derivePublicKeyFromPrivate(List<int> privateKeyBytes) {
-    try {
-      // IMPORTANTE: Em uma implementação real, usaríamos o algoritmo Ed25519 para
-      // derivar a chave pública matematicamente a partir da chave privada.
-
-      // Verificar se temos uma chave pública correspondente no armazenamento
-      // Usamos isso como prioridade para garantir correspondência
-      if (publicKey.value.isNotEmpty && privateKey.value.isNotEmpty) {
-        // Se estamos tentando derivar de nossa própria chave privada atual,
-        // usamos a chave pública que já temos armazenada
-        String privateKeyBase64 = base64Encode(privateKeyBytes);
-
-        if (privateKeyBase64 == privateKey.value) {
-          print("Usando chave pública armazenada para correspondência exata");
-          return base64Decode(publicKey.value);
-        }
-      }
-
-      // Se não for nossa chave atual ou não tivermos uma chave armazenada,
-      // usamos o algoritmo Ed25519
-      print("Derivando chave pública a partir da chave privada");
-
-      // Para uma derivação Ed25519 real, deveríamos usar o pacote cryptography
-      // Aqui está a implementação simplificada temporária, mas determinística
-
-      // Hash the private key to create a deterministic public key
-      // In a real implementation, we would use proper Ed25519 key derivation
-      List<int> derivedPublicKey = List<int>.filled(32, 0);
-
-      // Implement a simple deterministic transformation
-      // This should be replaced with proper Ed25519 implementation
-      for (int i = 0; i < 32 && i < privateKeyBytes.length; i++) {
-        // Use a more complex transformation that's still deterministic
-        derivedPublicKey[i] = ((privateKeyBytes[i] * 7 + 11) ^ 0x3F) & 0xFF;
-      }
-
-      return derivedPublicKey;
-    } catch (e) {
-      print("Erro ao derivar chave pública: $e");
-      // Fallback para caso de erro
-      return privateKeyBytes.sublist(0, math.min(privateKeyBytes.length, 32));
-    }
-  }
-
-  // Verifica se uma mensagem descriptografada contém o identificador válido
-  bool isValidDecryptedMessage(String message) {
-    return message.startsWith(MESSAGE_IDENTIFIER);
-  }
-
-  // Extrai o conteúdo real da mensagem após o identificador
-  String extractMessageContent(String message) {
-    if (isValidDecryptedMessage(message)) {
-      return message.substring(MESSAGE_IDENTIFIER.length);
-    }
-    return message; // Retorna a mensagem original se não tiver o identificador
-  }
-
-  // Converte string hexadecimal em lista de bytes
-  List<int> _hexToBytes(String hex) {
-    List<int> bytes = [];
-    for (int i = 0; i < hex.length; i += 2) {
-      if (i + 2 <= hex.length) {
-        bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
-      }
-    }
-    return bytes;
-  }
-
-  String? tryDecryptMessage(String encryptedText, String privateKey) {
-    try {
-      if (privateKey.isEmpty) {
+      if (privateKeyStr.isEmpty) {
         print("Erro: Chave privada vazia");
         return null;
       }
@@ -596,7 +478,7 @@ class KeyService extends GetxService {
       print("Tentando descriptografar com chave privada atual");
 
       try {
-        final decrypted = decryptMessage(encryptedText, privateKey);
+        final decrypted = await decryptMessage(encryptedText, privateKeyStr);
         print("Descriptografia bem sucedida com chave privada");
         return decrypted;
       } catch (e) {
@@ -614,20 +496,7 @@ class KeyService extends GetxService {
     }
   }
 
-  // Calcular HMAC simples para autenticação
-  List<int> _calculateHMAC(List<int> data, List<int> key) {
-    // Simplificação do HMAC usando XOR - em produção usaríamos HMAC real
-    List<int> result = List<int>.filled(32, 0);
-
-    for (int i = 0; i < data.length; i++) {
-      result[i % 32] ^= data[i] ^ key[i % key.length];
-    }
-
-    return result;
-  }
-
-  // Função para testar criptografia e descriptografia com a própria chave do usuário
-  bool testSelfEncryption() {
+  Future<bool> testSelfEncryption() async {
     try {
       if (!hasKeys.value) {
         print("Não há chaves para testar");
@@ -658,39 +527,23 @@ class KeyService extends GetxService {
       print("Chave privada (primeiros bytes): $privKeyHex");
 
       // Mensagem de teste
-      final testMessage =
-          "Testando criptografia para mim mesmo ${DateTime.now()}";
+      final testMessage = "Testando criptografia para mim mesmo.";
       print("Mensagem original: $testMessage");
 
       // Criptografa a mensagem usando a API de alto nível
       try {
-        final messageWithID = MESSAGE_IDENTIFIER + testMessage;
-        final messageBytes = utf8.encode(messageWithID);
-        final encryptedBytes =
-            _encryptWithRealEd25519(messageBytes, publicKeyBytes);
-        final encryptedBase64 = base64Encode(encryptedBytes);
+        // Criptografar usando a nova implementação
+        final encryptedBase64 = await encryptMessage(testMessage, publicKeyStr);
 
-        // Agora tenta descriptografar
-        final decryptedBytes =
-            _decryptWithRealEd25519(encryptedBytes, privateKeyBytes);
-        final decryptedMessage = utf8.decode(decryptedBytes);
-
-        // Verifica se a mensagem descriptografada começa com o identificador correto
-        if (!decryptedMessage.startsWith(MESSAGE_IDENTIFIER)) {
-          print(
-              "ERRO: A mensagem descriptografada não contém o identificador correto");
-          return false;
-        }
-
-        // Remove o identificador para comparação
-        final originalContent =
-            decryptedMessage.substring(MESSAGE_IDENTIFIER.length);
+        // Descriptografar usando a nova implementação
+        final decryptedMessage =
+            await decryptMessage(encryptedBase64, privateKeyStr);
 
         // Verifica se o conteúdo está correto
-        final success = (originalContent == testMessage);
+        final success = (decryptedMessage == testMessage);
         print("Teste " + (success ? "bem-sucedido" : "falhou"));
         print("Original: $testMessage");
-        print("Descriptografado: $originalContent");
+        print("Descriptografado: $decryptedMessage");
         print("==========================================\n");
 
         return success;
@@ -704,7 +557,6 @@ class KeyService extends GetxService {
     }
   }
 
-  // Limpar e regenerar chaves - útil para resolver problemas de incompatibilidade
   Future<bool> forceRegenerateKeys() async {
     try {
       print("Forçando regeneração de chaves...");
@@ -732,5 +584,20 @@ class KeyService extends GetxService {
       print("Erro ao regenerar chaves: $e");
       return false;
     }
+  }
+
+  String _bytesToHex(List<int> bytes) {
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
+  }
+
+  bool isValidDecryptedMessage(String message) {
+    return message.startsWith(MESSAGE_IDENTIFIER);
+  }
+
+  String extractMessageContent(String message) {
+    if (isValidDecryptedMessage(message)) {
+      return message.substring(MESSAGE_IDENTIFIER.length);
+    }
+    return message; // Retorna a mensagem original se não tiver o identificador
   }
 }

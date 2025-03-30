@@ -122,8 +122,11 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
         print('Tamanho do texto criptografado: ${item.encryptedText.length}');
 
         try {
-          final decryptedContent =
+          final decryptedContentFuture =
               _keyService.tryDecryptMessage(item.encryptedText, userPrivateKey);
+
+          // Await the Future to get the actual decrypted content
+          final decryptedContent = await decryptedContentFuture;
 
           if (decryptedContent != null) {
             print(

@@ -152,35 +152,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // Helper method to create new message
   void _createNewMessage() {
-    // Check if user has third-party keys
-    if (_keyService.thirdPartyKeys.isEmpty) {
-      Get.dialog(
-        AlertDialog(
-          title: Text('no_third_party_keys_title'.tr),
-          content: Text('no_third_party_keys_message'.tr),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: Text('close'.tr),
-            ),
-            TextButton(
-              onPressed: () {
-                Get.back();
-                Get.toNamed('/keys', arguments: {'initialTab': 1});
-              },
-              child: Text('add_third_party_key'.tr),
-            ),
-          ],
-        ),
-      );
-    } else {
-      Get.to(() => const NewMessagePage())?.then((result) async {
-        // Only reload if a new message was created (result is true)
-        if (result == true) {
-          await _messageService.loadMessages();
-        }
-      });
-    }
+    Get.to(() => const NewMessagePage())?.then((result) async {
+      // Only reload if a new message was created (result is true)
+      if (result == true) {
+        await _messageService.loadMessages();
+      }
+    });
   }
 
   // Widget to build the content of each tab
@@ -265,13 +242,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         itemCount: filteredMessages.length,
         itemBuilder: (context, index) {
           final message = filteredMessages[index];
-          return _buildChatBubble(message);
+          // Using FutureBuilder to handle the async decryption
+          return FutureBuilder<Widget>(
+            future: _buildChatBubbleAsync(message),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                // Show a placeholder or loading indicator while decrypting
+                return Container();
+              } else if (snapshot.hasError) {
+                // Show error state if decryption fails
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red[100],
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text('error_decrypting'.tr),
+                  ),
+                );
+              } else {
+                // Return the built bubble widget
+                return snapshot.data ?? Container();
+              }
+            },
+          );
         },
       );
     });
   }
 
-  Widget _buildChatBubble(EncryptedMessage message) {
+  // Async version of chat bubble builder
+  Future<Widget> _buildChatBubbleAsync(EncryptedMessage message) async {
     // Formata a data de criação da mensagem
     final dateFormat = _formatDate(message.createdAt);
 
@@ -313,8 +316,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
         for (var item in message.items) {
           try {
-            final decryptedContent = _keyService.tryDecryptMessage(
+            final decryptedContentFuture = _keyService.tryDecryptMessage(
                 item.encryptedText, userPrivateKey);
+
+            // Await the Future to get the actual string value
+            final decryptedContent = await decryptedContentFuture;
 
             if (decryptedContent != null) {
               displayedText = decryptedContent;
@@ -481,6 +487,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  // Original synchronous method is kept for compatibility but won't be used
+  Widget _buildChatBubble(EncryptedMessage message) {
+    // This is just a wrapper that returns a placeholder -
+    // the actual implementation is in _buildChatBubbleAsync
+    return Container(
+      padding: const EdgeInsets.all(12),
+      child: Text('Synchronous version deprecated'),
+    );
+  }
+
   // Formata a data da mensagem (converte de UTC para local e usa o locale do dispositivo)
   String _formatDate(DateTime utcDate) {
     // Converter de UTC para hora local
@@ -531,73 +547,69 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     // Para mensagens não importadas, SEMPRE mostra diálogo de seleção
     // Buscar a lista de chaves disponíveis
-    final keyList = _keyService.thirdPartyKeys;
-    if (keyList.isEmpty) {
-      Get.snackbar(
-        'error'.tr,
-        'no_third_party_keys'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
+    final keyList = List.from(_keyService.thirdPartyKeys);
+    keyList.insert(
+      0,
+      ThirdPartyKey(
+        name: 'me'.tr,
+        publicKey: _keyService.publicKey.value,
+        addedAt: DateTime.now(),
+      ),
+    );
 
     // Mostrar diálogo para selecionar destinatários
     await Get.dialog(
-      AlertDialog(
-        title: Text('select_recipients'.tr),
-        content: Container(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: keyList.length,
-            itemBuilder: (context, index) {
-              final key = keyList[index];
-              return CheckboxListTile(
-                title: Text(key.name),
-                subtitle: Text(
-                  '${_formatDate(key.addedAt)}',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 12,
-                  ),
-                ),
-                value: selectedKeys.contains(key.publicKey),
-                onChanged: (bool? value) {
-                  if (value == true) {
-                    selectedKeys.add(key.publicKey);
-                  } else {
-                    selectedKeys.remove(key.publicKey);
-                  }
-                  Get.forceAppUpdate();
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          return AlertDialog(
+            title: Text('select_recipients'.tr),
+            content: Container(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: keyList.length,
+                itemBuilder: (context, index) {
+                  final key = keyList[index];
+                  return CheckboxListTile(
+                    title: Text(key.name),
+                    value: selectedKeys.contains(key.publicKey),
+                    onChanged: (bool? value) {
+                      setState(() {
+                        if (value == true) {
+                          selectedKeys.add(key.publicKey);
+                        } else {
+                          selectedKeys.remove(key.publicKey);
+                        }
+                      });
+                    },
+                  );
                 },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: Text('cancel'.tr),
-          ),
-          TextButton(
-            onPressed: () {
-              if (selectedKeys.isEmpty) {
-                Get.snackbar(
-                  'error'.tr,
-                  'select_at_least_one'.tr,
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: Colors.red,
-                  colorText: Colors.white,
-                );
-                return;
-              }
-              Get.back(result: selectedKeys);
-            },
-            child: Text('confirm'.tr),
-          ),
-        ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(),
+                child: Text('cancel'.tr),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (selectedKeys.isEmpty) {
+                    Get.snackbar(
+                      'error'.tr,
+                      'select_at_least_one'.tr,
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.red,
+                      colorText: Colors.white,
+                    );
+                    return;
+                  }
+                  Get.back(result: selectedKeys);
+                },
+                child: Text('confirm'.tr),
+              ),
+            ],
+          );
+        },
       ),
     ).then((value) async {
       if (value == null || (value is List && value.isEmpty)) {

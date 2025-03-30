@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../controllers/app_controller.dart';
 import '../services/key_service.dart';
 import '../services/message_service.dart';
 import '../models/encrypted_message.dart';
@@ -60,25 +59,17 @@ class NewMessagePage extends StatefulWidget {
 }
 
 class _NewMessagePageState extends State<NewMessagePage> {
-  final AppController _appController = Get.find<AppController>();
   final KeyService _keyService = Get.find<KeyService>();
   final TextEditingController _textController = TextEditingController();
   final RxBool _hasText = false.obs;
   final RxBool _isProcessing = false.obs;
-  late final RecipientSelectionController _recipientController;
   late final MessageService _messageService;
 
   @override
   void initState() {
     super.initState();
     _textController.addListener(_updateHasText);
-    _recipientController = Get.put(RecipientSelectionController());
     _messageService = Get.find<MessageService>();
-
-    // Verificar se o usuário tem chave ao iniciar a página
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkUserHasKey();
-    });
   }
 
   void _updateHasText() {
@@ -210,55 +201,6 @@ class _NewMessagePageState extends State<NewMessagePage> {
       print('Error saving message: $e');
     } finally {
       _isProcessing.value = false;
-    }
-  }
-
-  // Método para verificar se o usuário tem chave válida
-  void _checkUserHasKey() {
-    // Verificar se tem destinatários disponíveis (chaves de terceiros)
-    if (_keyService.thirdPartyKeys.isEmpty) {
-      print(
-          "Não há destinatários disponíveis. Redirecionando para a página de chaves.");
-      Get.dialog(
-        AlertDialog(
-          title: Text('no_recipients_title'.tr),
-          content: Text('no_recipients_message'.tr),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Get.back();
-                Get.back(); // Volta para a página anterior
-              },
-              child: Text('close'.tr),
-            ),
-            TextButton(
-              onPressed: () {
-                Get.back();
-                Get.back(); // Volta para a página anterior
-                Get.toNamed('/keys', arguments: {
-                  'initialTab': 1
-                }); // Navega para a aba de chaves de terceiros
-              },
-              child: Text('add_recipients'.tr),
-            ),
-          ],
-        ),
-        barrierDismissible: false, // Impede fechar clicando fora do diálogo
-      );
-      return;
-    }
-
-    // Apenas verificar se o usuário tem chave própria, mas não bloquear o uso
-    if (!_keyService.hasKeys.value || _keyService.publicKey.value.isEmpty) {
-      print("Aviso: Usuário não possui chave própria. Exibindo alerta.");
-      Get.snackbar(
-        'warning'.tr,
-        'no_personal_key_warning'.tr,
-        duration: const Duration(seconds: 5),
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.amber,
-        colorText: Colors.black,
-      );
     }
   }
 }
