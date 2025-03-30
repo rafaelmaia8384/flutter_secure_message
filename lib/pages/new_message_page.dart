@@ -139,7 +139,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
                                   AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : Text('continue'.tr),
+                        : Text('save_message'.tr),
                   )),
             ),
           ),
@@ -152,95 +152,15 @@ class _NewMessagePageState extends State<NewMessagePage> {
     // Fechar o teclado e remover o foco
     FocusManager.instance.primaryFocus?.unfocus();
 
-    final result = await Get.dialog<List<bool>>(
-      AlertDialog(
-        title: Text('select_recipients'.tr),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Opção "Me" no topo da lista
-              Obx(() => CheckboxListTile(
-                    title: Text('me'.tr),
-                    subtitle: _keyService.hasKeys.value
-                        ? null
-                        : Text('no_personal_key_warning'.tr,
-                            style: TextStyle(color: Colors.red, fontSize: 12)),
-                    value: _recipientController.includeSelf.value,
-                    enabled: _keyService.hasKeys.value,
-                    onChanged: (bool? value) {
-                      _recipientController.toggleSelf(value);
-                    },
-                  )),
-              // Separador entre "Me" e outros contatos
-              const Divider(),
-              // Lista de contatos de terceiros
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _keyService.thirdPartyKeys.length,
-                  itemBuilder: (context, index) {
-                    final key = _keyService.thirdPartyKeys[index];
-                    return Obx(() => CheckboxListTile(
-                          title: Text(key.name),
-                          value: _recipientController.selectedRecipients[index],
-                          onChanged: (bool? value) {
-                            _recipientController.toggleRecipient(index, value);
-                          },
-                        ));
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              _recipientController._initializeSelectedRecipients();
-              Get.back();
-            },
-            child: Text('cancel'.tr),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (_recipientController.hasAtLeastOneRecipient()) {
-                Get.back();
-                await _encryptAndSaveMessage();
-              } else {
-                Get.snackbar(
-                  'error'.tr,
-                  'select_at_least_one_recipient'.tr,
-                  snackPosition: SnackPosition.BOTTOM,
-                );
-              }
-            },
-            child: Text('continue'.tr),
-          ),
-        ],
-      ),
-    );
+    // Não mostra mais o diálogo de seleção de destinatários
+    // Vai direto para salvar a mensagem em texto simples
+    await _encryptAndSaveMessage();
   }
 
   Future<void> _encryptAndSaveMessage() async {
     _isProcessing.value = true;
 
     final messageText = _textController.text.trim();
-    final selectedIndexes = _recipientController.getSelectedIndexes();
-    final includeSelf = _recipientController.includeSelf.value;
-
-    if (selectedIndexes.isEmpty && !includeSelf) {
-      Get.snackbar(
-        'error'.tr,
-        'select_recipients_warning'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      _isProcessing.value = false;
-      return;
-    }
 
     try {
       // Garantir um tempo mínimo para o loading
@@ -248,9 +168,6 @@ class _NewMessagePageState extends State<NewMessagePage> {
 
       // Usar DateTime UTC para armazenamento global
       final DateTime currentTimeUTC = DateTime.now().toUtc();
-
-      // Criar a lista de itens criptografados
-      final List<EncryptedMessageItem> items = [];
 
       // Obter a chave pública do usuário para identificar o remetente
       final String userPublicKey = _keyService.publicKey.value;
@@ -260,107 +177,37 @@ class _NewMessagePageState extends State<NewMessagePage> {
           ? userPublicKey
           : "anonymous-${DateTime.now().millisecondsSinceEpoch}";
 
+      print("Salvando mensagem em texto simples sem criptografia imediata");
       print(
-          "Chave do remetente: ${senderKey.substring(0, math.min(10, senderKey.length))}...");
+          "Remetente: ${senderKey.substring(0, math.min(10, senderKey.length))}...");
 
-      // Se apenas "Me" estiver selecionado, fazer um teste de criptografia/descriptografia
-      // antes de prosseguir para garantir que funciona
-      if (includeSelf && selectedIndexes.isEmpty && userPublicKey.isNotEmpty) {
-        print(
-            "Teste de criptografia para si mesmo antes de enviar a mensagem...");
-        bool testResult = _keyService.testSelfEncryption();
+      // Criar lista vazia de items - a criptografia será feita apenas no momento do compartilhamento
+      final List<EncryptedMessageItem> items = [];
 
-        if (!testResult) {
-          throw Exception('Falha no teste de criptografia para si mesmo');
-        } else {
-          print("Teste bem-sucedido, prosseguindo com o envio...");
-        }
-      }
-
-      // Para cada chave selecionada, criptografar a mensagem e adicionar à lista
-      for (final index in selectedIndexes) {
-        final key = _keyService.thirdPartyKeys[index];
-
-        // Verificar se a chave pública do destinatário está vazia
-        if (key.publicKey.isEmpty) {
-          throw Exception('Recipient public key is empty for ${key.name}');
-        }
-
-        print(
-            'Criptografando mensagem para ${key.name} com chave: ${key.publicKey.substring(0, math.min(10, key.publicKey.length))}...');
-
-        final encryptedText =
-            _keyService.encryptMessage(messageText, key.publicKey);
-
-        items.add(
-          EncryptedMessageItem(
-            encryptedText: encryptedText,
-            createdAt: currentTimeUTC,
-          ),
-        );
-      }
-
-      // Adicionar uma versão criptografada para o próprio usuário se foi selecionado
-      if (includeSelf && userPublicKey.isNotEmpty) {
-        print(
-            'Criptografando mensagem para o próprio usuário com chave: ${userPublicKey.substring(0, math.min(10, userPublicKey.length))}...');
-
-        // Usando a chave pública do usuário para criptografar para si mesmo
-        final selfEncryptedText = _keyService.encryptMessage(
-          messageText,
-          userPublicKey,
-        );
-
-        items.add(
-          EncryptedMessageItem(
-            encryptedText: selfEncryptedText,
-            createdAt: currentTimeUTC,
-          ),
-        );
-      } else if (!includeSelf && selectedIndexes.isEmpty) {
-        print('Nenhum destinatário selecionado, cancelando');
-        _isProcessing.value = false;
-        return;
-      } else if (includeSelf && userPublicKey.isEmpty) {
-        print(
-            'Usuário não possui chave própria, mas a opção Me foi selecionada');
-        Get.snackbar(
-          'warning'.tr,
-          'no_personal_key_error'.tr,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
-      }
-
-      // Verificar se há itens criptografados
-      if (items.isEmpty) {
-        throw Exception('No encrypted items to save');
-      }
-
-      // Criar e salvar a mensagem criptografada
+      // Criar e salvar a mensagem com o texto original em plainText
       final newMessage = EncryptedMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         senderPublicKey: senderKey,
-        items: items,
+        items: items, // Lista vazia, pois não há criptografia ainda
         createdAt: currentTimeUTC,
         isImported: false,
+        plainText: messageText, // Armazenar o texto original
       );
 
       await _messageService.addMessage(newMessage);
 
       // Simplesmente voltar para a HomePage anterior
-      Get.back();
+      Get.back(result: true);
     } catch (e) {
       // Mostrar mensagem de erro
       Get.snackbar(
         'error'.tr,
-        'error_encrypting_message'.tr,
+        'error_saving_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
-      print('Error encrypting message: $e');
+      print('Error saving message: $e');
     } finally {
       _isProcessing.value = false;
     }

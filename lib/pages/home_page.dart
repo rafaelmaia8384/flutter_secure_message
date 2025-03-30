@@ -11,6 +11,7 @@ import '../models/encrypted_message.dart';
 import '../widgets/action_button.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -294,40 +295,52 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     }
 
-    // Tenta descriptografar a mensagem
-    String decryptedMessage = '';
+    // Lógica para mostrar o conteúdo da mensagem
+    String displayedText = '';
     String errorMessage = '';
 
-    try {
-      final userPrivateKey = _keyService.privateKey.value;
+    // Se a mensagem tem texto em plainText, mostrar diretamente
+    if (message.plainText.isNotEmpty) {
+      displayedText = message.plainText;
+    }
+    // Senão, tentar descriptografar se tiver items
+    else if (message.items.isNotEmpty) {
+      try {
+        final userPrivateKey = _keyService.privateKey.value;
 
-      // Tenta descriptografar cada item da mensagem
-      bool decryptionSuccess = false;
+        // Tenta descriptografar cada item da mensagem
+        bool decryptionSuccess = false;
 
-      for (var item in message.items) {
-        try {
-          final decryptedContent =
-              _keyService.tryDecryptMessage(item.encryptedText, userPrivateKey);
+        for (var item in message.items) {
+          try {
+            final decryptedContent = _keyService.tryDecryptMessage(
+                item.encryptedText, userPrivateKey);
 
-          if (decryptedContent != null) {
-            decryptedMessage = decryptedContent;
-            decryptionSuccess = true;
-            break;
+            if (decryptedContent != null) {
+              displayedText = decryptedContent;
+              decryptionSuccess = true;
+              break;
+            }
+          } catch (e) {
+            print('Error decrypting item: $e');
           }
-        } catch (e) {
-          print('Error decrypting item: $e');
         }
-      }
 
-      if (!decryptionSuccess) {
-        errorMessage = 'message_not_for_you'.tr;
+        if (!decryptionSuccess) {
+          errorMessage = 'message_not_for_you'.tr;
+        }
+      } catch (e) {
+        errorMessage = 'error_decrypting'.tr;
       }
-    } catch (e) {
-      errorMessage = 'error_decrypting'.tr;
+    } else {
+      // Caso especial: mensagem sem texto e sem items
+      errorMessage = 'empty_message'.tr;
     }
 
-    // Calcula o número de terceiros autorizados - 1
-    final thirdPartyCount = message.items.length - 1;
+    // Calcula o número de terceiros autorizados - pode ser 0
+    final thirdPartyCount = message.items.length - (isOwnMessage ? 1 : 0);
+    final thirdPartyCountText =
+        thirdPartyCount < 0 ? "0" : thirdPartyCount.toString();
 
     // Determina a posição do bubble com base no remetente
     final isFromMe = isOwnMessage;
@@ -380,7 +393,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               ),
                             )
                           : Text(
-                              decryptedMessage,
+                              displayedText,
                               style: TextStyle(
                                 color: isFromMe
                                     ? Colors.white
@@ -424,7 +437,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
                           const SizedBox(width: 2),
                           Text(
-                            thirdPartyCount.toString(),
+                            thirdPartyCountText,
                             style: TextStyle(
                               fontSize: 10,
                               color: isFromMe
@@ -452,18 +465,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               IconButton(
                 icon: const Icon(Icons.share, size: 20),
                 onPressed: () => _shareMessage(message),
-                // constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(8),
-                // visualDensity: VisualDensity.compact,
               ),
 
               // Botão de excluir
               IconButton(
                 icon: const Icon(Icons.delete_forever, size: 20),
                 onPressed: () => _deleteMessage(message),
-                // constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(8),
-                // visualDensity: VisualDensity.compact,
               ),
             ],
           ),
@@ -486,24 +495,166 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // Compartilhar uma mensagem
   void _shareMessage(EncryptedMessage message) async {
-    try {
-      final messageService = Get.find<MessageService>();
-      final exportString = messageService.compactMessageForSharing(message);
-
-      // Compartilhar diretamente usando share_plus
-      await Share.share(
-        exportString,
-        subject: 'Encrypted Message',
-      );
-    } catch (e) {
+    // Se a mensagem não tem texto original, mostra erro
+    if (message.plainText.isEmpty) {
       Get.snackbar(
         'error'.tr,
-        'Error: $e',
+        'no_message_content'.tr,
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
+      return;
     }
+
+    // Log para debug - verificar estado atual da mensagem
+    print("\n======== COMPARTILHANDO MENSAGEM ========");
+    print("ID: ${message.id}");
+    print(
+        "Texto original: ${message.plainText.substring(0, math.min(20, message.plainText.length))}...");
+    print("Importada: ${message.isImported}");
+    print("Número de itens criptografados: ${message.items.length}");
+    if (message.items.isNotEmpty) {
+      print("Itens existentes serão substituídos por novos");
+    }
+    print("=========================================\n");
+
+    // Inicializar lista de seleção de destinatários
+    List<String> selectedKeys = [];
+
+    // Se a mensagem for importada, compartilha diretamente
+    if (message.isImported) {
+      final shareable = await _messageService.compactMessageForSharing(message);
+      await Share.share(shareable);
+      return;
+    }
+
+    // Para mensagens não importadas, SEMPRE mostra diálogo de seleção
+    // Buscar a lista de chaves disponíveis
+    final keyList = _keyService.thirdPartyKeys;
+    if (keyList.isEmpty) {
+      Get.snackbar(
+        'error'.tr,
+        'no_third_party_keys'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    // Mostrar diálogo para selecionar destinatários
+    await Get.dialog(
+      AlertDialog(
+        title: Text('select_recipients'.tr),
+        content: Container(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: keyList.length,
+            itemBuilder: (context, index) {
+              final key = keyList[index];
+              return CheckboxListTile(
+                title: Text(key.name),
+                subtitle: Text(
+                  '${_formatDate(key.addedAt)}',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+                value: selectedKeys.contains(key.publicKey),
+                onChanged: (bool? value) {
+                  if (value == true) {
+                    selectedKeys.add(key.publicKey);
+                  } else {
+                    selectedKeys.remove(key.publicKey);
+                  }
+                  Get.forceAppUpdate();
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('cancel'.tr),
+          ),
+          TextButton(
+            onPressed: () {
+              if (selectedKeys.isEmpty) {
+                Get.snackbar(
+                  'error'.tr,
+                  'select_at_least_one'.tr,
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: Colors.red,
+                  colorText: Colors.white,
+                );
+                return;
+              }
+              Get.back(result: selectedKeys);
+            },
+            child: Text('confirm'.tr),
+          ),
+        ],
+      ),
+    ).then((value) async {
+      if (value == null || (value is List && value.isEmpty)) {
+        // Usuário cancelou a seleção
+        return;
+      }
+
+      // Criar lista vazia para os novos itens criptografados
+      // (substitui os itens antigos, em vez de adicionar aos existentes)
+      final List<EncryptedMessageItem> encryptedItems = [];
+
+      try {
+        // Criptografar para cada destinatário selecionado
+        for (final publicKey in value) {
+          final encryptedText = await _keyService.encryptMessage(
+            message.plainText,
+            publicKey,
+          );
+
+          if (encryptedText != null) {
+            encryptedItems.add(EncryptedMessageItem(
+              encryptedText: encryptedText,
+              createdAt: DateTime.now().toUtc(),
+            ));
+          }
+        }
+
+        // Criar cópia da mensagem com itens atualizados
+        final updatedMessage = EncryptedMessage(
+          id: message.id,
+          plainText: message.plainText,
+          createdAt: message.createdAt,
+          isImported: message.isImported,
+          senderPublicKey: message.senderPublicKey,
+          items: encryptedItems,
+        );
+
+        // Atualizar na lista de mensagens
+        await _messageService.updateMessage(updatedMessage);
+
+        // Registrar a atualização da mensagem e compartilhar
+        print(
+            "Mensagem atualizada com ${encryptedItems.length} novos itens criptografados");
+        final shareable =
+            await _messageService.compactMessageForSharing(updatedMessage);
+        await Share.share(shareable);
+      } catch (e) {
+        Get.snackbar(
+          'error'.tr,
+          'error_encrypting'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        print('Erro ao criptografar: $e');
+      }
+    });
   }
 
   // Excluir uma mensagem

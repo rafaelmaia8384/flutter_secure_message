@@ -6,6 +6,7 @@ class EncryptedMessage {
   final List<EncryptedMessageItem> items;
   final DateTime createdAt;
   final bool isImported;
+  final String plainText;
 
   EncryptedMessage({
     required this.id,
@@ -13,6 +14,7 @@ class EncryptedMessage {
     required this.items,
     required this.createdAt,
     this.isImported = false,
+    this.plainText = '',
   });
 
   Map<String, dynamic> toJson() {
@@ -22,6 +24,7 @@ class EncryptedMessage {
       'items': items.map((item) => item.toJson()).toList(),
       'createdAt': createdAt.toIso8601String(),
       'isImported': isImported,
+      'plainText': plainText,
     };
   }
 
@@ -34,6 +37,7 @@ class EncryptedMessage {
           .toList(),
       createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
       isImported: json['isImported'] as bool? ?? false,
+      plainText: json['plainText'] as String? ?? '',
     );
   }
 }
