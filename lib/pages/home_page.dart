@@ -8,6 +8,8 @@ import 'new_message_page.dart';
 import 'import_message_page.dart';
 import '../models/encrypted_message.dart';
 import '../widgets/action_button.dart';
+import '../widgets/message_bubble.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'dart:math' as math;
 
@@ -22,7 +24,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late TabController _tabController;
   final RxInt _previousMessageCount = 0.obs;
   final MessageService _messageService = Get.put(MessageService());
-  final AppController _appController = Get.find<AppController>();
   final KeyService _keyService = Get.find<KeyService>();
   final RxBool _isLoading = false.obs;
   final RxInt _selectedTabIndex = 0.obs; // Track the selected tab index
@@ -240,271 +241,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         itemCount: filteredMessages.length,
         itemBuilder: (context, index) {
           final message = filteredMessages[index];
-          // Using FutureBuilder to handle the async decryption
-          return FutureBuilder<Widget>(
-            future: _buildChatBubbleAsync(message),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                // Show a placeholder or loading indicator while decrypting
-                return Container();
-              } else if (snapshot.hasError) {
-                // Show error state if decryption fails
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red[100],
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text('error_decrypting'.tr),
-                  ),
-                );
-              } else {
-                // Return the built bubble widget
-                return snapshot.data ?? Container();
-              }
-            },
+          return MessageBubble(
+            message: message,
+            keyService: _keyService,
+            onShare: _shareMessage,
+            onDelete: _deleteMessage,
           );
         },
       );
     });
-  }
-
-  // Async version of chat bubble builder
-  Future<Widget> _buildChatBubbleAsync(EncryptedMessage message) async {
-    // Formata a data de criação da mensagem
-    final dateFormat = _formatDate(message.createdAt);
-
-    // Obtém o nome do remetente da mensagem
-    bool isOwnMessage = message.senderPublicKey == _keyService.publicKey.value;
-
-    String senderName;
-    if (isOwnMessage) {
-      senderName = 'me'.tr;
-    } else {
-      // Procurar nas chaves de terceiros pelo senderPublicKey (case insensitive)
-      int keyIndex = _keyService.thirdPartyKeys
-          .indexWhere((key) => key.publicKey == message.senderPublicKey);
-
-      if (keyIndex >= 0) {
-        // Se encontrou a chave, usar o nome do contato
-        senderName = _keyService.thirdPartyKeys[keyIndex].name;
-      } else {
-        // Se não encontrou, usar "Contato Desconhecido"
-        senderName = 'message_from_unknown'.tr;
-      }
-    }
-
-    // Lógica para mostrar o conteúdo da mensagem
-    String displayedText = '';
-    String errorMessage = '';
-
-    // Se a mensagem tem texto em plainText, mostrar diretamente
-    if (message.plainText.isNotEmpty) {
-      displayedText = message.plainText;
-    }
-    // Senão, tentar descriptografar se tiver items
-    else if (message.items.isNotEmpty) {
-      try {
-        final userPrivateKey = _keyService.privateKey.value;
-
-        // Tenta descriptografar cada item da mensagem
-        bool decryptionSuccess = false;
-
-        for (var item in message.items) {
-          try {
-            final decryptedContentFuture = _keyService.tryDecryptMessage(
-                item.encryptedText, userPrivateKey);
-
-            // Await the Future to get the actual string value
-            final decryptedContent = await decryptedContentFuture;
-
-            if (decryptedContent != null) {
-              displayedText = decryptedContent;
-              decryptionSuccess = true;
-              break;
-            }
-          } catch (e) {
-            print('Error decrypting item: $e');
-          }
-        }
-
-        if (!decryptionSuccess) {
-          errorMessage = 'message_not_for_you'.tr;
-        }
-      } catch (e) {
-        errorMessage = 'error_decrypting'.tr;
-      }
-    } else {
-      // Caso especial: mensagem sem texto e sem items
-      errorMessage = 'empty_message'.tr;
-    }
-
-    // Calcula o número de terceiros autorizados - pode ser 0
-    final thirdPartyCount = message.items.length - (isOwnMessage ? 1 : 0);
-    final thirdPartyCountText =
-        thirdPartyCount < 0 ? "0" : thirdPartyCount.toString();
-
-    // Determina a posição do bubble com base no remetente
-    final isFromMe = isOwnMessage;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Conteúdo do bubble sempre à esquerda
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  isFromMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isFromMe
-                        ? Colors.blue[700]
-                        : Theme.of(context).brightness == Brightness.dark
-                            ? Colors.grey[800]
-                            : Colors.grey[300],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Remetente
-                      Text(
-                        senderName,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isFromMe
-                              ? Colors.white
-                              : Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.white
-                                  : Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-
-                      // Mensagem descriptografada ou erro
-                      errorMessage.isNotEmpty
-                          ? Text(
-                              errorMessage,
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            )
-                          : Text(
-                              displayedText,
-                              style: TextStyle(
-                                color: isFromMe
-                                    ? Colors.white
-                                    : Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? Colors.white
-                                        : Colors.black,
-                              ),
-                            ),
-
-                      // Informações adicionais
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Data de criação
-                          Text(
-                            dateFormat,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: isFromMe
-                                  ? Colors.white70
-                                  : Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.grey[400]
-                                      : Colors.grey[700],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Número de terceiros autorizados
-                          Icon(
-                            Icons.people,
-                            size: 12,
-                            color: isFromMe
-                                ? Colors.white70
-                                : Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? Colors.grey[400]
-                                    : Colors.grey[700],
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            thirdPartyCountText,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: isFromMe
-                                  ? Colors.white70
-                                  : Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.grey[400]
-                                      : Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Botões de ação verticais
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Botão de compartilhar
-              IconButton(
-                icon: const Icon(Icons.share, size: 20),
-                onPressed: () => _shareMessage(message),
-                padding: const EdgeInsets.all(8),
-              ),
-
-              // Botão de excluir
-              IconButton(
-                icon: const Icon(Icons.delete_forever, size: 20),
-                onPressed: () => _deleteMessage(message),
-                padding: const EdgeInsets.all(8),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Original synchronous method is kept for compatibility but won't be used
-  Widget _buildChatBubble(EncryptedMessage message) {
-    // This is just a wrapper that returns a placeholder -
-    // the actual implementation is in _buildChatBubbleAsync
-    return Container(
-      padding: const EdgeInsets.all(12),
-      child: Text('Synchronous version deprecated'),
-    );
-  }
-
-  // Formata a data da mensagem (converte de UTC para local e usa o locale do dispositivo)
-  String _formatDate(DateTime utcDate) {
-    // Converter de UTC para hora local
-    final DateTime localDate = utcDate.toLocal();
-
-    // Usar o locale do dispositivo para formatar a data
-    final locale = Get.locale?.toString() ?? 'en_US';
-    final DateFormat dateFormat = DateFormat.yMd(locale).add_Hm();
-
-    return dateFormat.format(localDate);
   }
 
   // Compartilhar uma mensagem
@@ -627,12 +372,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             publicKey,
           );
 
-          if (encryptedText != null) {
-            encryptedItems.add(EncryptedMessageItem(
-              encryptedText: encryptedText,
-              createdAt: DateTime.now().toUtc(),
-            ));
-          }
+          encryptedItems.add(EncryptedMessageItem(
+            encryptedText: encryptedText,
+            createdAt: DateTime.now().toUtc(),
+          ));
         }
 
         // Criar cópia da mensagem com itens atualizados
