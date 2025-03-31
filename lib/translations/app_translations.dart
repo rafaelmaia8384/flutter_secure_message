@@ -104,7 +104,7 @@ class AppTranslations extends Translations {
           'decrypting_message': 'Decrypting message...',
           'enter_encrypted_message': 'Paste the encrypted message here...',
           'invalid_message_format':
-              'Invalid message format. The message should start with "sec-" followed by encoded data.',
+              'Invalid message format. The message should start with "sec-msg:" followed by encoded data.',
           'warning': 'Warning',
           'yes': 'Yes',
           'no': 'No',
@@ -178,6 +178,7 @@ class AppTranslations extends Translations {
           'keys_replaced': 'Encryption keys replaced successfully',
           'error_replacing_keys': 'Failed to replace encryption keys',
           'replace': 'Replace',
+          'decrypted_message': 'Decrypted',
 
           // Encryption Keys Guide translations
           'encryption_keys_guide': 'Encryption Keys Guide',

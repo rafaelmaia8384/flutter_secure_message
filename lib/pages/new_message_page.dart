@@ -244,11 +244,8 @@ class _NewMessagePageState extends State<NewMessagePage> {
 
       try {
         final messageText = _textController.text.trim();
-        final DateTime currentTimeUTC = DateTime.now().toUtc();
         final String userPublicKey = _keyService.publicKey.value;
-        final String senderKey = userPublicKey.isNotEmpty
-            ? userPublicKey
-            : "anonymous-${DateTime.now().millisecondsSinceEpoch}";
+        final String senderKey = userPublicKey;
 
         // Criar lista de itens criptografados
         final List<EncryptedMessageItem> encryptedItems = [];
@@ -262,18 +259,14 @@ class _NewMessagePageState extends State<NewMessagePage> {
 
           encryptedItems.add(EncryptedMessageItem(
             encryptedText: encryptedText,
-            createdAt: DateTime.now().toUtc(),
           ));
         }
 
         // Criar mensagem temporária (não será armazenada)
         final tempMessage = EncryptedMessage(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
           senderPublicKey: senderKey,
           items: encryptedItems,
-          createdAt: currentTimeUTC,
           isImported: false,
-          plainText: messageText,
         );
 
         // Compactar para compartilhamento
@@ -306,28 +299,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
       if (message.items.isEmpty) {
         print('Aviso: Mensagem sem itens criptografados para compartilhar');
 
-        // Se a mensagem não tem itens criptografados, mas tem texto puro,
-        // retorna um formato simplificado para compartilhar apenas o texto
-        if (message.plainText.isNotEmpty) {
-          print('Compartilhando apenas o texto puro da mensagem');
-
-          // Criar JSON simplificado com apenas o texto puro
-          // Não precisamos de id, sender ou createdAt para texto puro
-          final Map<String, dynamic> simpleJson = {
-            'p': message.plainText, // Incluir apenas o texto puro
-          };
-
-          // Converter para string JSON
-          final String jsonString = jsonEncode(simpleJson);
-
-          // Codificar em base64
-          final String base64String = base64Encode(utf8.encode(jsonString));
-
-          // Retornar com um prefixo diferente para identificar que é texto puro
-          return "sec-txt-$base64String";
-        }
-
-        // Se não tiver nem texto puro, então realmente não há o que compartilhar
+        // Se não há itens para compartilhar, não há o que fazer
         throw Exception('message_empty_for_sharing'.tr);
       }
 
@@ -337,7 +309,6 @@ class _NewMessagePageState extends State<NewMessagePage> {
         't': message.items
             .map((item) => {
                   'e': item.encryptedText,
-                  'd': item.createdAt.toIso8601String(),
                 })
             .toList(),
       };
@@ -349,7 +320,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
       final String base64String = base64Encode(utf8.encode(jsonString));
 
       // 4. Adicionar um prefixo para identificar o formato
-      return "sec-$base64String";
+      return "sec-msg:$base64String";
     } catch (e) {
       print('Erro ao compactar mensagem: $e');
       throw Exception('Erro ao compactar mensagem: $e');

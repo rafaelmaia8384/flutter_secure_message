@@ -97,17 +97,10 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
       }
 
       print('Mensagem extraída com sucesso!');
-      print('ID da mensagem: ${message.id}');
       print('Remetente: ${message.senderPublicKey}');
       print('Total de itens: ${message.items.length}');
 
       final userPrivateKey = _keyService.privateKey.value;
-
-      // Se for uma mensagem de texto puro (sem criptografia)
-      if (message.plainText.isNotEmpty && message.items.isEmpty) {
-        _showDecryptedMessage(message.plainText);
-        return;
-      }
 
       // Tentar descriptografar cada item até encontrar um que funcione
       String? decryptedContent;
@@ -155,12 +148,14 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
         scrollable: true,
         title: Text('decrypted_message'.tr),
         content: SingleChildScrollView(
-          child: Text(content,
-              style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
-                fontWeight: FontWeight.bold,
-              )),
+          child: Text(
+            content,
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -186,44 +181,9 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
       String jsonString;
       Map<String, dynamic> messageJson;
 
-      // Verificar o formato da mensagem
-      if (cleanedString.startsWith("sec-txt-")) {
-        print('Formato detectado: texto puro (sem criptografia)');
-        // Formato para texto puro
-        String base64String = cleanedString.substring("sec-txt-".length);
-
-        try {
-          // Decodificar o base64
-          List<int> decodedBytes = base64Decode(base64String);
-          jsonString = utf8.decode(decodedBytes);
-
-          // Analisar o JSON simplificado
-          final Map<String, dynamic> simpleJson = json.decode(jsonString);
-          print(
-              'JSON de texto puro decodificado com sucesso. Chaves: ${simpleJson.keys.join(", ")}');
-
-          // Converter para o formato padrão
-          messageJson = {
-            'id': simpleJson.containsKey('i')
-                ? simpleJson['i']
-                : DateTime.now().millisecondsSinceEpoch.toString(),
-            'senderPublicKey':
-                simpleJson.containsKey('s') ? simpleJson['s'] : 'anonymous',
-            'createdAt': simpleJson.containsKey('c')
-                ? simpleJson['c']
-                : DateTime.now().toIso8601String(),
-            'plainText': simpleJson['p'],
-            'items': [], // Lista vazia de itens
-            'isImported': true, // Marcar como importada
-          };
-        } catch (e) {
-          print('Erro na decodificação do formato de texto puro: $e');
-          throw FormatException('Erro na decodificação: $e');
-        }
-      } else if (cleanedString.startsWith("sec-")) {
-        print('Formato detectado: sc2 (otimizado)');
+      if (cleanedString.startsWith("sec-msg:")) {
         // Formato otimizado
-        String base64String = cleanedString.substring("sec-".length);
+        String base64String = cleanedString.substring("sec-msg:".length);
 
         try {
           // Decodificar o base64
@@ -235,43 +195,26 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
           print(
               'JSON compacto decodificado com sucesso. Chaves: ${compactJson.keys.join(", ")}');
 
-          // Converter para o formato padrão, gerando IDs e timestamps
+          // Converter para o formato padrão
           messageJson = {
-            'id': compactJson.containsKey('i')
-                ? compactJson['i']
-                : DateTime.now().millisecondsSinceEpoch.toString(),
             'senderPublicKey':
                 compactJson.containsKey('s') ? compactJson['s'] : 'anonymous',
-            'createdAt': compactJson.containsKey('c')
-                ? compactJson['c']
-                : DateTime.now().toIso8601String(),
             'items': (compactJson['t'] as List)
                 .map((item) => {
                       'encryptedText': item['e'],
-                      'createdAt': item['d'],
                     })
                 .toList(),
           };
         } catch (e) {
-          print('Erro na decodificação do formato sc2: $e');
+          print('Erro na decodificação: $e');
           throw FormatException('Erro na decodificação: $e');
         }
       } else {
-        // Verificar se é uma string JSON direta (sem codificação)
-        try {
-          print('Tentando decodificar como JSON direto...');
-          messageJson = json.decode(cleanedString);
-          print('JSON direto decodificado com sucesso');
-        } catch (e) {
-          print('Não é um formato válido de mensagem: $e');
-          return null;
-        }
+        return null;
       }
 
       // Verificar estrutura básica do JSON antes de tentar criar o objeto
-      if (!messageJson.containsKey('id') ||
-          !messageJson.containsKey('senderPublicKey') ||
-          !messageJson.containsKey('createdAt')) {
+      if (!messageJson.containsKey('senderPublicKey')) {
         print(
             'Estrutura de JSON inválida. Chaves presentes: ${messageJson.keys.join(", ")}');
         return null;
@@ -280,11 +223,9 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
       try {
         // Criar objeto EncryptedMessage a partir do JSON
         final message = EncryptedMessage.fromJson(messageJson);
-        print('Objeto EncryptedMessage criado com sucesso. ID: ${message.id}');
+        print('Objeto EncryptedMessage criado com sucesso.');
         if (message.items.isNotEmpty) {
           print('A mensagem tem ${message.items.length} itens');
-        } else if (message.plainText.isNotEmpty) {
-          print('A mensagem tem texto puro (sem criptografia)');
         }
         return message;
       } catch (e) {

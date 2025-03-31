@@ -15,28 +15,7 @@ class MessageService extends GetxService {
       if (message.items.isEmpty) {
         print('Aviso: Mensagem sem itens criptografados para compartilhar');
 
-        // Se a mensagem não tem itens criptografados, mas tem texto puro,
-        // retorna um formato simplificado para compartilhar apenas o texto
-        if (message.plainText.isNotEmpty) {
-          print('Compartilhando apenas o texto puro da mensagem');
-
-          // Criar JSON simplificado com apenas o texto puro
-          // Não precisamos de id, sender ou createdAt para texto puro
-          final Map<String, dynamic> simpleJson = {
-            'p': message.plainText, // Incluir apenas o texto puro
-          };
-
-          // Converter para string JSON
-          final String jsonString = jsonEncode(simpleJson);
-
-          // Codificar em base64
-          final String base64String = base64Encode(utf8.encode(jsonString));
-
-          // Retornar com um prefixo diferente para identificar que é texto puro
-          return "sec-txt-$base64String";
-        }
-
-        // Se não tiver nem texto puro, então realmente não há o que compartilhar
+        // Se não há itens para compartilhar, não há o que fazer
         throw Exception('message_empty_for_sharing'.tr);
       }
 
@@ -46,7 +25,6 @@ class MessageService extends GetxService {
         't': message.items
             .map((item) => {
                   'e': item.encryptedText,
-                  'd': item.createdAt.toIso8601String(),
                 })
             .toList(),
       };
@@ -58,7 +36,7 @@ class MessageService extends GetxService {
       final String base64String = base64Encode(utf8.encode(jsonString));
 
       // 4. Adicionar um prefixo para identificar o formato
-      return "sec-$base64String";
+      return "sec-msg:$base64String";
     } catch (e) {
       print('Erro ao compactar mensagem: $e');
       throw Exception('Erro ao compactar mensagem: $e');
@@ -80,43 +58,9 @@ class MessageService extends GetxService {
       Map<String, dynamic> messageJson;
 
       // Verificar o formato da mensagem
-      if (cleanedString.startsWith("sec-txt-")) {
-        print('Formato detectado: texto puro (sem criptografia)');
-        // Formato para texto puro
-        String base64String = cleanedString.substring("sec-txt-".length);
-
-        try {
-          // Decodificar o base64
-          List<int> decodedBytes = base64Decode(base64String);
-          jsonString = utf8.decode(decodedBytes);
-
-          // Analisar o JSON simplificado
-          final Map<String, dynamic> simpleJson = json.decode(jsonString);
-          print(
-              'JSON de texto puro decodificado com sucesso. Chaves: ${simpleJson.keys.join(", ")}');
-
-          // Converter para o formato padrão
-          messageJson = {
-            'id': simpleJson.containsKey('i')
-                ? simpleJson['i']
-                : DateTime.now().millisecondsSinceEpoch.toString(),
-            'senderPublicKey':
-                simpleJson.containsKey('s') ? simpleJson['s'] : 'anonymous',
-            'createdAt': simpleJson.containsKey('c')
-                ? simpleJson['c']
-                : DateTime.now().toIso8601String(),
-            'plainText': simpleJson['p'],
-            'items': [], // Lista vazia de itens
-            'isImported': true, // Marcar como importada
-          };
-        } catch (e) {
-          print('Erro na decodificação do formato de texto puro: $e');
-          throw FormatException('Erro na decodificação: $e');
-        }
-      } else if (cleanedString.startsWith("sec-")) {
-        print('Formato detectado: sc2 (otimizado)');
-        // Formato otimizado
-        String base64String = cleanedString.substring("sec-".length);
+      if (cleanedString.startsWith("sec-msg:")) {
+        print('Formato detectado: formato padrão');
+        String base64String = cleanedString.substring("sec-msg:".length);
 
         try {
           // Decodificar o base64
@@ -128,41 +72,20 @@ class MessageService extends GetxService {
           print(
               'JSON compacto decodificado com sucesso. Chaves: ${compactJson.keys.join(", ")}');
 
-          // Converter para o formato padrão, gerando IDs e timestamps
+          // Converter para o formato padrão
           messageJson = {
-            'id': compactJson.containsKey('i')
-                ? compactJson['i']
-                : DateTime.now().millisecondsSinceEpoch.toString(),
             'senderPublicKey':
                 compactJson.containsKey('s') ? compactJson['s'] : 'anonymous',
-            'createdAt': compactJson.containsKey('c')
-                ? compactJson['c']
-                : DateTime.now().toIso8601String(),
-            'items': (compactJson['t'] as List)
-                .map((item) => {
-                      'encryptedText': item['e'],
-                      'createdAt': item['d'],
-                    })
-                .toList(),
+            'items': (compactJson['t'] as List?)
+                    ?.map((item) => {
+                          'encryptedText': item['e'],
+                        })
+                    .toList() ??
+                [],
+            'isImported': true,
           };
         } catch (e) {
-          print('Erro na decodificação do formato sc2: $e');
-          throw FormatException('Erro na decodificação: $e');
-        }
-      } else if (cleanedString.startsWith("sec-")) {
-        print('Formato detectado: secure-chat (original)');
-        // Formato original
-        String base64String = cleanedString.substring("sec-".length);
-
-        try {
-          // Decodificar o base64
-          List<int> decodedBytes = base64Decode(base64String);
-          jsonString = utf8.decode(decodedBytes);
-          messageJson = json.decode(jsonString);
-          print(
-              'JSON original decodificado com sucesso. Chaves: ${messageJson.keys.join(", ")}');
-        } catch (e) {
-          print('Erro na decodificação do formato secure-chat: $e');
+          print('Erro na decodificação: $e');
           throw FormatException('Erro na decodificação: $e');
         }
       } else {
@@ -178,9 +101,7 @@ class MessageService extends GetxService {
       }
 
       // Verificar estrutura básica do JSON antes de tentar criar o objeto
-      if (!messageJson.containsKey('id') ||
-          !messageJson.containsKey('senderPublicKey') ||
-          !messageJson.containsKey('createdAt')) {
+      if (!messageJson.containsKey('senderPublicKey')) {
         print(
             'Estrutura de JSON inválida. Chaves presentes: ${messageJson.keys.join(", ")}');
         return null;
@@ -195,7 +116,7 @@ class MessageService extends GetxService {
       try {
         // Criar objeto EncryptedMessage a partir do JSON
         final message = EncryptedMessage.fromJson(messageJson);
-        print('Objeto EncryptedMessage criado com sucesso. ID: ${message.id}');
+        print('Objeto EncryptedMessage criado com sucesso.');
         if (message.items.isNotEmpty) {
           print('A mensagem tem ${message.items.length} itens');
         }

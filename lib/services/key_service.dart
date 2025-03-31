@@ -177,8 +177,11 @@ class KeyService extends GetxService {
       print("\nTestando criptografia e descriptografia com as novas chaves...");
       final testResult = await testSelfEncryption();
 
-      if (!testResult) {
-        print("FALHA: As chaves não passaram no teste de criptografia!");
+      // Testar o cenário de comunicação entre usuários diferentes
+      final testCommunication = await testUserToCommunication();
+
+      if (!testResult || !testCommunication) {
+        print("FALHA: As chaves não passaram nos testes de criptografia!");
         // Limpar chaves inválidas
         privateKey.value = "";
         publicKey.value = "";
@@ -348,6 +351,7 @@ class KeyService extends GetxService {
           'messageNonce': base64Encode(nonce),
           'message': base64Encode(secretBox.cipherText),
           'mac': base64Encode(secretBox.mac.bytes),
+          'senderPublicKey': publicKey.value,
         };
 
         // 11. Codificar o resultado em JSON e base64 para transferência segura
@@ -389,20 +393,28 @@ class KeyService extends GetxService {
         final encryptedMessage = base64Decode(data['message'] as String);
         final messageMac = Mac(base64Decode(data['mac'] as String));
 
-        // 2. Carregar a chave privada do destinatário
-        final privateKeyBytes = base64Decode(privateKeyStr);
+        // 2. Obter a chave pública do remetente
+        String senderPublicKeyStr;
+        if (data.containsKey('senderPublicKey')) {
+          senderPublicKeyStr = data['senderPublicKey'] as String;
+        } else {
+          // Para compatibilidade com versões anteriores, usar nossa própria chave pública
+          senderPublicKeyStr = publicKey.value;
+          print("Aviso: Usando chave pública própria para compatibilidade.");
+        }
 
-        // 3. Criamos um par de chaves temporário para o destinatário
-        final receiverKeyPair =
-            await _keyExchangeAlgorithm.newKeyPairFromSeed(privateKeyBytes);
-
-        // 4. Obter a chave pública do remetente (simplificação: usando nossa própria chave pública)
-        // Em uma implementação real, isso viria da mensagem ou seria determinado pelo contexto
-        final senderPublicKeyBytes = base64Decode(publicKey.value);
+        final senderPublicKeyBytes = base64Decode(senderPublicKeyStr);
         final senderPublicKey = SimplePublicKey(
           senderPublicKeyBytes,
           type: KeyPairType.x25519,
         );
+
+        // 3. Carregar a chave privada do destinatário
+        final privateKeyBytes = base64Decode(privateKeyStr);
+
+        // 4. Criamos um par de chaves temporário para o destinatário
+        final receiverKeyPair =
+            await _keyExchangeAlgorithm.newKeyPairFromSeed(privateKeyBytes);
 
         // 5. Calcular a chave compartilhada usando X25519
         final sharedSecret = await _keyExchangeAlgorithm.sharedSecretKey(
@@ -589,5 +601,91 @@ class KeyService extends GetxService {
       return message.substring(MESSAGE_IDENTIFIER.length);
     }
     return message; // Retorna a mensagem original se não tiver o identificador
+  }
+
+  // Testa a criptografia entre usuários diferentes
+  Future<bool> testUserToCommunication() async {
+    try {
+      print("\n===== TESTE DE COMUNICAÇÃO ENTRE USUÁRIOS =====");
+
+      // Chaves do usuário atual (Alice)
+      final alicePublicKey = publicKey.value;
+      final alicePrivateKey = privateKey.value;
+
+      // Criar chaves para um usuário de teste (Bob)
+      final bobKeyPair = await _keyExchangeAlgorithm.newKeyPair();
+      final bobPrivateKeyBytes = await bobKeyPair.extractPrivateKeyBytes();
+      final bobPublicKeyObj = await bobKeyPair.extractPublicKey();
+      final bobPublicKeyBytes = bobPublicKeyObj.bytes;
+
+      final bobPublicKey = base64Encode(bobPublicKeyBytes);
+      final bobPrivateKey = base64Encode(bobPrivateKeyBytes);
+
+      print("Chaves do usuário de teste (Bob) geradas:");
+      print(
+          "Pública (primeiros bytes): ${_bytesToHex(bobPublicKeyBytes.sublist(0, math.min(8, bobPublicKeyBytes.length)))}...");
+
+      // Mensagem de teste
+      final testMessage = "Testando comunicação entre Alice e Bob.";
+      print("Mensagem original: $testMessage");
+
+      // Teste 1: Alice criptografa para Bob
+      print("\nTeste 1: Alice criptografa para Bob");
+      try {
+        // Alice criptografa mensagem para Bob
+        final encryptedForBob = await encryptMessage(testMessage, bobPublicKey);
+        print("Mensagem criptografada por Alice para Bob");
+
+        // Salvar chave pública de Alice atual
+        final currentPublicKey = publicKey.value;
+
+        // Simular que estamos no dispositivo de Bob
+        // (usando a chave privada de Bob e a chave pública de Alice)
+        publicKey.value = alicePublicKey; // Define chave pública de Alice
+
+        // Bob descriptografa mensagem com sua chave privada
+        final decryptedByBob =
+            await decryptMessage(encryptedForBob, bobPrivateKey);
+        print("Mensagem descriptografada por Bob: $decryptedByBob");
+
+        // Restaurar estado
+        publicKey.value = currentPublicKey;
+
+        final success1 = (decryptedByBob == testMessage);
+        print("Teste 1 " + (success1 ? "bem-sucedido" : "falhou"));
+
+        // Teste 2: Bob criptografa para Alice
+        print("\nTeste 2: Bob criptografa para Alice");
+
+        // Simular que estamos no dispositivo de Bob
+        publicKey.value = bobPublicKey; // Agora Bob é o remetente
+
+        // Bob criptografa mensagem para Alice
+        final encryptedForAlice =
+            await encryptMessage(testMessage, alicePublicKey);
+        print("Mensagem criptografada por Bob para Alice");
+
+        // Restaurar estado (voltamos a ser Alice)
+        publicKey.value = alicePublicKey;
+
+        // Alice descriptografa mensagem com sua chave privada
+        final decryptedByAlice =
+            await decryptMessage(encryptedForAlice, alicePrivateKey);
+        print("Mensagem descriptografada por Alice: $decryptedByAlice");
+
+        final success2 = (decryptedByAlice == testMessage);
+        print("Teste 2 " + (success2 ? "bem-sucedido" : "falhou"));
+
+        print("==========================================\n");
+
+        return success1 && success2;
+      } catch (e) {
+        print("FALHA no teste de comunicação entre usuários: $e");
+        return false;
+      }
+    } catch (e) {
+      print("Erro durante o teste de comunicação entre usuários: $e");
+      return false;
+    }
   }
 }
