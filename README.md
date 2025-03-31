@@ -1,4 +1,5 @@
 # Secure Message
+- ![Running app](assets/secure_message.gif)
 
 A secure messaging application built with Flutter that enables end-to-end encrypted communication. The app uses asymmetric encryption to ensure that messages can only be read by their intended recipients.
 

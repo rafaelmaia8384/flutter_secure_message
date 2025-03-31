@@ -16,8 +16,6 @@ class AuthService extends GetxService {
   }
 
   Future<bool> authenticate() async {
-    //TODO: lembrar de desabilitar isso
-    return true;
     try {
       if (!hasBiometrics.value) {
         Get.snackbar(
