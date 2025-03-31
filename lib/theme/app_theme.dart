@@ -8,7 +8,6 @@ class AppTheme {
       primary: Colors.green,
       secondary: Colors.greenAccent,
       surface: Colors.grey[900]!,
-      background: Colors.black,
       error: Colors.red,
     ),
     appBarTheme: const AppBarTheme(

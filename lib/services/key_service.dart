@@ -233,6 +233,7 @@ class KeyService extends GetxService {
       final newKey = ThirdPartyKey(
         name: name,
         publicKey: publicKeyString,
+        addedAt: DateTime.now().toUtc(),
       );
 
       thirdPartyKeys.add(newKey);
