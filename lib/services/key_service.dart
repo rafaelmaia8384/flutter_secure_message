@@ -1,7 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:async';
 import 'package:cryptography/cryptography.dart';
 
@@ -58,53 +57,37 @@ class KeyService extends GetxService {
   static const String MESSAGE_IDENTIFIER = "secure-chat:";
 
   Future<KeyService> init() async {
-    print("Inicializando KeyService...");
     try {
       await loadKeys();
       await loadThirdPartyKeys();
 
-      print("KeyService inicializado com sucesso:");
-      print("- Tem chaves: ${hasKeys.value}");
-      print("- Tamanho da chave pública: ${publicKey.value.length} caracteres");
-      print(
-          "- Tamanho da chave privada: ${privateKey.value.length} caracteres");
-      print("- Quantidade de chaves de terceiros: ${thirdPartyKeys.length}");
-
       return this;
     } catch (e) {
-      print("Erro ao inicializar KeyService: $e");
       return this; // Retorna o serviço mesmo com erro para evitar falhas na aplicação
     }
   }
 
   Future<void> loadKeys() async {
     try {
-      print("Carregando chaves do armazenamento seguro...");
       final storedPublicKey = await _storage.read(key: 'public_key');
       final storedPrivateKey = await _storage.read(key: 'private_key');
 
       if (storedPublicKey != null && storedPrivateKey != null) {
-        print("Chaves encontradas no armazenamento. Validando formato...");
-
         // Validate hex format
         if (!_isValidKeyFormat(storedPublicKey) ||
             !_isValidKeyFormat(storedPrivateKey)) {
-          print("ERRO: Formato de chave inválido");
           throw Exception('Invalid key format');
         }
 
         publicKey.value = storedPublicKey;
         privateKey.value = storedPrivateKey;
         hasKeys.value = true;
-        print("Chaves carregadas e validadas com sucesso");
       } else {
-        print("Nenhuma chave encontrada no armazenamento");
         publicKey.value = '';
         privateKey.value = '';
         hasKeys.value = false;
       }
     } catch (e) {
-      print("Erro ao carregar chaves: $e");
       // Garantir que o estado seja consistente em caso de erro
       publicKey.value = '';
       privateKey.value = '';
@@ -140,8 +123,6 @@ class KeyService extends GetxService {
 
   Future<bool> generateNewKeys() async {
     try {
-      print("Gerando novo par de chaves X25519...");
-
       // Gerar par de chaves usando X25519
       final keyPair = await _keyExchangeAlgorithm.newKeyPair();
       final privateKeyObj = await keyPair.extractPrivateKeyBytes();
@@ -152,16 +133,8 @@ class KeyService extends GetxService {
       final privateKeyBytes = privateKeyObj;
 
       if (publicKeyBytes.isEmpty || privateKeyBytes.isEmpty) {
-        print("Erro: Geração de chaves resultou em chaves vazias!");
         return false;
       }
-
-      print("Chaves geradas:");
-      print(
-          "Privada (primeiros bytes): ${_bytesToHex(privateKeyBytes.sublist(0, math.min(8, privateKeyBytes.length)))}...");
-      print(
-          "Pública (primeiros bytes): ${_bytesToHex(publicKeyBytes.sublist(0, math.min(8, publicKeyBytes.length)))}...");
-
       // Converter as chaves para base64 para armazenamento mais fácil
       final privateKeyBase64 = base64Encode(privateKeyBytes);
       final publicKeyBase64 = base64Encode(publicKeyBytes);
@@ -174,14 +147,12 @@ class KeyService extends GetxService {
       hasKeys.value = true;
 
       // Testar se podemos criptografar e descriptografar com essas chaves
-      print("\nTestando criptografia e descriptografia com as novas chaves...");
       final testResult = await testSelfEncryption();
 
       // Testar o cenário de comunicação entre usuários diferentes
       final testCommunication = await testUserToCommunication();
 
       if (!testResult || !testCommunication) {
-        print("FALHA: As chaves não passaram nos testes de criptografia!");
         // Limpar chaves inválidas
         privateKey.value = "";
         publicKey.value = "";
@@ -190,15 +161,12 @@ class KeyService extends GetxService {
       }
 
       // Armazenar as chaves
-      print("Salvando chaves...");
       await _storage.write(key: 'public_key', value: publicKeyBase64);
       await _storage.write(key: 'private_key', value: privateKeyBase64);
 
       // hasKeys já está definido como true acima
-      print("Chaves salvas com sucesso!");
       return true;
     } catch (e) {
-      print("Erro ao gerar novas chaves: $e");
       return false;
     }
   }
@@ -265,11 +233,9 @@ class KeyService extends GetxService {
         base64Decode(key);
         return true;
       } catch (e) {
-        print("Erro ao decodificar base64: $e");
         return false;
       }
     } catch (e) {
-      print("Erro ao validar formato de chave: $e");
       return false;
     }
   }
@@ -283,11 +249,8 @@ class KeyService extends GetxService {
       String message, String recipientPublicKeyBase64) async {
     try {
       if (recipientPublicKeyBase64.isEmpty) {
-        print("ERRO: Tentativa de criptografar com chave pública vazia");
         throw Exception('Public key cannot be empty');
       }
-
-      print("Criptografando mensagem. Tamanho: ${message.length} caracteres");
 
       // Adicionar o identificador ao início da mensagem antes de criptografar
       final messageWithIdentifier = MESSAGE_IDENTIFIER + message;
@@ -358,16 +321,11 @@ class KeyService extends GetxService {
         // 11. Codificar o resultado em JSON e base64 para transferência segura
         final encodedJson = json.encode(resultMap);
         final encodedBase64 = base64Encode(utf8.encode(encodedJson));
-
-        print(
-            "Mensagem criptografada com sucesso. Tamanho final: ${encodedBase64.length} caracteres");
         return encodedBase64;
       } catch (e) {
-        print("Erro específico na criptografia: $e");
         throw Exception('Specific encryption error: $e');
       }
     } catch (e) {
-      print("ERRO na criptografia: $e");
       throw Exception('Error encrypting message: $e');
     }
   }
@@ -376,7 +334,6 @@ class KeyService extends GetxService {
       String encryptedText, String privateKeyStr) async {
     try {
       if (privateKeyStr.isEmpty) {
-        print("ERRO: Tentativa de descriptografar com chave privada vazia");
         throw Exception('Private key cannot be empty');
       }
 
@@ -401,7 +358,6 @@ class KeyService extends GetxService {
         } else {
           // Para compatibilidade com versões anteriores, usar nossa própria chave pública
           senderPublicKeyStr = publicKey.value;
-          print("Aviso: Usando chave pública própria para compatibilidade.");
         }
 
         final senderPublicKeyBytes = base64Decode(senderPublicKeyStr);
@@ -461,11 +417,9 @@ class KeyService extends GetxService {
           throw Exception('Invalid message format or wrong key');
         }
       } catch (e) {
-        print("Erro específico na descriptografia: $e");
         throw Exception('Specific decryption error: $e');
       }
     } catch (e) {
-      print("Erro ao descriptografar: $e");
       throw Exception('Error decrypting message: $e');
     }
   }
@@ -474,27 +428,16 @@ class KeyService extends GetxService {
       String encryptedText, String privateKeyStr) async {
     try {
       if (privateKeyStr.isEmpty) {
-        print("Erro: Chave privada vazia");
         return null;
       }
 
-      print("Tentando descriptografar com chave privada atual");
-
       try {
         final decrypted = await decryptMessage(encryptedText, privateKeyStr);
-        print("Descriptografia bem sucedida com chave privada");
         return decrypted;
-      } catch (e) {
-        print("Falha na descriptografia com chave privada: $e");
-      }
+      } catch (e) {}
 
-      // Se não conseguiu descriptografar com a chave privada,
-      // a mensagem não é destinada ao usuário atual ou está corrompida
-      print(
-          "Não foi possível descriptografar a mensagem com a chave privada atual");
       return null;
     } catch (e) {
-      print("Erro geral ao tentar descriptografar: $e");
       return null;
     }
   }
@@ -502,7 +445,6 @@ class KeyService extends GetxService {
   Future<bool> testSelfEncryption() async {
     try {
       if (!hasKeys.value) {
-        print("Não há chaves para testar");
         return false;
       }
 
@@ -511,27 +453,11 @@ class KeyService extends GetxService {
       final privateKeyStr = privateKey.value;
 
       if (publicKeyStr.isEmpty || privateKeyStr.isEmpty) {
-        print("Chaves vazias, não é possível testar");
         return false;
       }
 
-      print("\n===== TESTE DE CRIPTOGRAFIA PARA SI MESMO =====");
-
-      // Converte as chaves de string para bytes
-      final publicKeyBytes = base64Decode(publicKeyStr);
-      final privateKeyBytes = base64Decode(privateKeyStr);
-
-      // Exibe informações das chaves
-      String pubKeyHex = _bytesToHex(
-          publicKeyBytes.sublist(0, math.min(16, publicKeyBytes.length)));
-      String privKeyHex = _bytesToHex(
-          privateKeyBytes.sublist(0, math.min(16, privateKeyBytes.length)));
-      print("Chave pública (primeiros bytes): $pubKeyHex");
-      print("Chave privada (primeiros bytes): $privKeyHex");
-
       // Mensagem de teste
       final testMessage = "Testando criptografia para mim mesmo.";
-      print("Mensagem original: $testMessage");
 
       // Criptografa a mensagem usando a API de alto nível
       try {
@@ -544,26 +470,18 @@ class KeyService extends GetxService {
 
         // Verifica se o conteúdo está correto
         final success = (decryptedMessage == testMessage);
-        print("Teste " + (success ? "bem-sucedido" : "falhou"));
-        print("Original: $testMessage");
-        print("Descriptografado: $decryptedMessage");
-        print("==========================================\n");
 
         return success;
       } catch (e) {
-        print("FALHA no teste de criptografia: $e");
         return false;
       }
     } catch (e) {
-      print("Erro durante o teste de criptografia: $e");
       return false;
     }
   }
 
   Future<bool> forceRegenerateKeys() async {
     try {
-      print("Forçando regeneração de chaves...");
-
       // Limpar chaves existentes
       await _storage.delete(key: 'public_key');
       await _storage.delete(key: 'private_key');
@@ -573,24 +491,12 @@ class KeyService extends GetxService {
       hasKeys.value = false;
 
       // Gerar novas chaves
-      print("Gerando novas chaves...");
       final result = await generateNewKeys();
-
-      if (result) {
-        print("Regeneração de chaves concluída com sucesso!");
-      } else {
-        print("Falha na regeneração de chaves.");
-      }
 
       return result;
     } catch (e) {
-      print("Erro ao regenerar chaves: $e");
       return false;
     }
-  }
-
-  String _bytesToHex(List<int> bytes) {
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join('');
   }
 
   bool isValidDecryptedMessage(String message) {
@@ -607,8 +513,6 @@ class KeyService extends GetxService {
   // Testa a criptografia entre usuários diferentes
   Future<bool> testUserToCommunication() async {
     try {
-      print("\n===== TESTE DE COMUNICAÇÃO ENTRE USUÁRIOS =====");
-
       // Chaves do usuário atual (Alice)
       final alicePublicKey = publicKey.value;
       final alicePrivateKey = privateKey.value;
@@ -622,20 +526,11 @@ class KeyService extends GetxService {
       final bobPublicKey = base64Encode(bobPublicKeyBytes);
       final bobPrivateKey = base64Encode(bobPrivateKeyBytes);
 
-      print("Chaves do usuário de teste (Bob) geradas:");
-      print(
-          "Pública (primeiros bytes): ${_bytesToHex(bobPublicKeyBytes.sublist(0, math.min(8, bobPublicKeyBytes.length)))}...");
-
       // Mensagem de teste
       final testMessage = "Testando comunicação entre Alice e Bob.";
-      print("Mensagem original: $testMessage");
-
-      // Teste 1: Alice criptografa para Bob
-      print("\nTeste 1: Alice criptografa para Bob");
       try {
         // Alice criptografa mensagem para Bob
         final encryptedForBob = await encryptMessage(testMessage, bobPublicKey);
-        print("Mensagem criptografada por Alice para Bob");
 
         // Salvar chave pública de Alice atual
         final currentPublicKey = publicKey.value;
@@ -647,16 +542,13 @@ class KeyService extends GetxService {
         // Bob descriptografa mensagem com sua chave privada
         final decryptedByBob =
             await decryptMessage(encryptedForBob, bobPrivateKey);
-        print("Mensagem descriptografada por Bob: $decryptedByBob");
 
         // Restaurar estado
         publicKey.value = currentPublicKey;
 
         final success1 = (decryptedByBob == testMessage);
-        print("Teste 1 " + (success1 ? "bem-sucedido" : "falhou"));
 
         // Teste 2: Bob criptografa para Alice
-        print("\nTeste 2: Bob criptografa para Alice");
 
         // Simular que estamos no dispositivo de Bob
         publicKey.value = bobPublicKey; // Agora Bob é o remetente
@@ -664,7 +556,6 @@ class KeyService extends GetxService {
         // Bob criptografa mensagem para Alice
         final encryptedForAlice =
             await encryptMessage(testMessage, alicePublicKey);
-        print("Mensagem criptografada por Bob para Alice");
 
         // Restaurar estado (voltamos a ser Alice)
         publicKey.value = alicePublicKey;
@@ -672,20 +563,14 @@ class KeyService extends GetxService {
         // Alice descriptografa mensagem com sua chave privada
         final decryptedByAlice =
             await decryptMessage(encryptedForAlice, alicePrivateKey);
-        print("Mensagem descriptografada por Alice: $decryptedByAlice");
 
         final success2 = (decryptedByAlice == testMessage);
-        print("Teste 2 " + (success2 ? "bem-sucedido" : "falhou"));
-
-        print("==========================================\n");
 
         return success1 && success2;
       } catch (e) {
-        print("FALHA no teste de comunicação entre usuários: $e");
         return false;
       }
     } catch (e) {
-      print("Erro durante o teste de comunicação entre usuários: $e");
       return false;
     }
   }
