@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:flutter_secure_message/services/auth_service.dart';
 import 'package:flutter_secure_message/services/key_service.dart';
 import 'package:flutter_secure_message/services/message_service.dart';
@@ -14,9 +13,6 @@ import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Inicializar GetStorage
-  await GetStorage.init();
 
   // Inicializar os dados de formatação de data para todos os locales
   await initializeDateFormatting();
