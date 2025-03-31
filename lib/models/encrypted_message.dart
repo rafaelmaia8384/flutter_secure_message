@@ -17,23 +17,20 @@ class EncryptedMessage {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'senderPublicKey': senderPublicKey,
       'items': items.map((item) => item.toJson()).toList(),
-      'createdAt': createdAt.toIso8601String(),
-      'isImported': isImported,
-      'plainText': plainText,
     };
   }
 
   factory EncryptedMessage.fromJson(Map<String, dynamic> json) {
     return EncryptedMessage(
-      id: json['id'] as String,
-      senderPublicKey: json['senderPublicKey'] as String,
+      id: json['id'] as String? ?? '',
+      senderPublicKey: json['senderPublicKey'] as String? ?? '',
       items: (json['items'] as List)
           .map((item) => EncryptedMessageItem.fromJson(item))
           .toList(),
-      createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String).toUtc()
+          : DateTime.now().toUtc(),
       isImported: json['isImported'] as bool? ?? false,
       plainText: json['plainText'] as String? ?? '',
     );
@@ -51,13 +48,14 @@ class EncryptedMessageItem {
 
   Map<String, dynamic> toJson() => {
         'encryptedText': encryptedText,
-        'createdAt': createdAt.toIso8601String(),
       };
 
   factory EncryptedMessageItem.fromJson(Map<String, dynamic> json) {
     return EncryptedMessageItem(
       encryptedText: json['encryptedText'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String).toUtc()
+          : DateTime.now().toUtc(),
     );
   }
 }

@@ -338,7 +338,6 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                height: 48,
                 child: Obx(() => ElevatedButton(
                       onPressed: _hasText.value && !_isProcessing.value
                           ? _decryptMessage

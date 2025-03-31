@@ -115,7 +115,6 @@ class _NewMessagePageState extends State<NewMessagePage> {
                   const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
               child: SizedBox(
                 width: double.infinity,
-                height: 48,
                 child: Obx(() => ElevatedButton(
                       onPressed: _hasText.value && !_isProcessing.value
                           ? _showRecipientSelection

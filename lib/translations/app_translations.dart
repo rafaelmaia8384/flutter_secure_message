@@ -99,7 +99,7 @@ class AppTranslations extends Translations {
           'encrypting_message': 'Encrypting message...',
           'message_options': 'Message Options',
           'encrypt_message': 'Encrypt New Message',
-          'import_message': 'Import Encrypted Message',
+          'import_message': 'Descrypt Message',
           'import': 'Import',
           'decrypting_message': 'Decrypting message...',
           'enter_encrypted_message': 'Paste the encrypted message here...',

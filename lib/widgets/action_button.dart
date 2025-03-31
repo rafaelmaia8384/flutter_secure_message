@@ -14,19 +14,8 @@ class ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12.0),
-      // decoration: BoxDecoration(
-      //   color: Theme.of(context).cardColor,
-      //   boxShadow: [
-      //     BoxShadow(
-      //       color: Colors.black12,
-      //       blurRadius: 4,
-      //       offset: const Offset(0, -2),
-      //     )
-      //   ],
-      // ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 280, maxWidth: 300),
       child: ElevatedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon),
