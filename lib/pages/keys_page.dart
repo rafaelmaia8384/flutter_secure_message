@@ -248,10 +248,16 @@ class _KeysPageState extends State<KeysPage> {
         ),
         // Only show the bottom action button when there are keys
         Obx(() => _keyService.thirdPartyKeys.isNotEmpty
-            ? ActionButton(
-                label: 'add_new_key'.tr,
-                icon: Icons.add,
-                onPressed: () => _showAddKeyDialog(),
+            ? SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 32),
+                  child: ActionButton(
+                    label: 'add_new_key'.tr,
+                    icon: Icons.add,
+                    onPressed: () => _showAddKeyDialog(),
+                  ),
+                ),
               )
             : const SizedBox.shrink()),
       ],
