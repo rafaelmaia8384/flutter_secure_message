@@ -297,58 +297,61 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
       appBar: AppBar(
         title: Text('import_message'.tr),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Obx(() => TextField(
-                    controller: _textController,
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    enabled: !_isProcessing.value,
-                    decoration: InputDecoration(
-                      hintText: 'enter_encrypted_message'.tr,
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Obx(() => TextField(
+                      controller: _textController,
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      enabled: !_isProcessing.value,
+                      decoration: InputDecoration(
+                        hintText: 'enter_encrypted_message'.tr,
+                        hintStyle: const TextStyle(color: Colors.grey),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                    ),
-                  )),
-            ),
-            Obx(() => _errorMessage.value.isNotEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text(
-                      _errorMessage.value,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  )
-                : const SizedBox.shrink()),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: Obx(() => ElevatedButton(
-                    onPressed: _hasText.value && !_isProcessing.value
-                        ? _decryptMessage
-                        : null,
-                    child: _isProcessing.value
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Text('Decrypt Message'),
-                  )),
-            ),
-          ],
+                    )),
+              ),
+              Obx(() => _errorMessage.value.isNotEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        _errorMessage.value,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    )
+                  : const SizedBox.shrink()),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: Obx(() => ElevatedButton(
+                      onPressed: _hasText.value && !_isProcessing.value
+                          ? _decryptMessage
+                          : null,
+                      child: _isProcessing.value
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text('Decrypt Message'),
+                    )),
+              ),
+            ],
+          ),
         ),
       ),
     );

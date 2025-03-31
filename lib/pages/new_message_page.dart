@@ -87,52 +87,55 @@ class _NewMessagePageState extends State<NewMessagePage> {
       appBar: AppBar(
         title: Text('new_message'.tr),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Obx(() => TextField(
-                    controller: _textController,
-                    maxLines: null,
-                    expands: true,
-                    enabled: !_isProcessing.value,
-                    textAlignVertical: TextAlignVertical.top,
-                    decoration: InputDecoration(
-                      hintText: 'enter_message'.tr,
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Obx(() => TextField(
+                      controller: _textController,
+                      maxLines: null,
+                      expands: true,
+                      enabled: !_isProcessing.value,
+                      textAlignVertical: TextAlignVertical.top,
+                      decoration: InputDecoration(
+                        hintText: 'enter_message'.tr,
+                        hintStyle: const TextStyle(color: Colors.grey),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                    ),
-                  )),
+                    )),
+              ),
             ),
-          ),
-          Padding(
-            padding:
-                const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
-            child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: Obx(() => ElevatedButton(
-                    onPressed: _hasText.value && !_isProcessing.value
-                        ? _showRecipientSelection
-                        : null,
-                    child: _isProcessing.value
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Text('Encrypt and Share'),
-                  )),
+            Padding(
+              padding:
+                  const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: Obx(() => ElevatedButton(
+                      onPressed: _hasText.value && !_isProcessing.value
+                          ? _showRecipientSelection
+                          : null,
+                      child: _isProcessing.value
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text('Encrypt and Share'),
+                    )),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
