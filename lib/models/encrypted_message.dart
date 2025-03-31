@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class EncryptedMessage {
   final String id;
   final String senderPublicKey;

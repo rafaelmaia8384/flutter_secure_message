@@ -10,9 +10,6 @@ class AppController extends GetxController with WidgetsBindingObserver {
   final RxBool biometricAuthenticated = false.obs;
   final RxInt lastActiveTimeMillis = 0.obs;
 
-  // Variável para controlar a animação de novos itens na HomePage
-  final RxBool shouldAnimateNewMessages = false.obs;
-
   @override
   void onInit() {
     super.onInit();
@@ -60,15 +57,5 @@ class AppController extends GetxController with WidgetsBindingObserver {
 
   void updateLastActiveTime() {
     _pauseTime = null;
-  }
-
-  // Método para sinalizar que há novas mensagens e que devem ser animadas
-  void triggerMessageAnimation() {
-    shouldAnimateNewMessages.value = true;
-
-    // Reset após um breve período para permitir múltiplas animações
-    Future.delayed(const Duration(seconds: 2), () {
-      shouldAnimateNewMessages.value = false;
-    });
   }
 }

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../services/key_service.dart';
-import '../services/message_service.dart';
 import '../models/encrypted_message.dart';
-import 'dart:math' as math;
+import 'dart:convert';
 
 class ImportMessagePage extends StatefulWidget {
   const ImportMessagePage({super.key});
@@ -17,7 +16,6 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
   final RxBool _hasText = false.obs;
   final RxBool _isProcessing = false.obs;
   final KeyService _keyService = Get.find<KeyService>();
-  final MessageService _messageService = Get.find<MessageService>();
   final RxString _errorMessage = ''.obs;
 
   @override
@@ -72,7 +70,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
     _hasText.value = _textController.text.trim().isNotEmpty;
   }
 
-  Future<void> _importMessage() async {
+  Future<void> _decryptMessage() async {
     // Fechar o teclado e remover o foco
     FocusManager.instance.primaryFocus?.unfocus();
 
@@ -85,11 +83,11 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
 
       String inputText = _textController.text.trim();
 
-      print('Iniciando importação de mensagem...');
+      print('Iniciando descriptografia de mensagem...');
       print('Tamanho do texto: ${inputText.length} caracteres');
 
-      // Usar o método centralizado para extrair a mensagem
-      final message = _messageService.extractMessageFromSharedString(inputText);
+      // Extrair a mensagem do texto compartilhado
+      final message = _extractMessageFromSharedString(inputText);
 
       if (message == null) {
         _errorMessage.value = 'invalid_message_format'.tr;
@@ -103,80 +101,193 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
       print('Remetente: ${message.senderPublicKey}');
       print('Total de itens: ${message.items.length}');
 
-      final userPublicKey = _keyService.publicKey.value;
-      print(
-          'Chave pública do usuário: ${userPublicKey.substring(0, math.min(10, userPublicKey.length))}...');
-      print('Tamanho da chave privada: ${_keyService.privateKey.value.length}');
-      print('Mensagem própria? ${message.senderPublicKey == userPublicKey}');
-
-      // Tentar descriptografar pelo menos um item para verificar se é válido
-      bool canDecrypt = false;
       final userPrivateKey = _keyService.privateKey.value;
-      int attemptCount = 0;
 
-      print('Iniciando tentativas de descriptografia...');
-
-      for (var item in message.items) {
-        attemptCount++;
-        print('Tentativa $attemptCount: item de ${item.createdAt}');
-        print('Tamanho do texto criptografado: ${item.encryptedText.length}');
-
-        try {
-          final decryptedContentFuture =
-              _keyService.tryDecryptMessage(item.encryptedText, userPrivateKey);
-
-          // Await the Future to get the actual decrypted content
-          final decryptedContent = await decryptedContentFuture;
-
-          if (decryptedContent != null) {
-            print(
-                'Descriptografia bem-sucedida! Conteúdo: ${decryptedContent.substring(0, math.min(20, decryptedContent.length))}...');
-            canDecrypt = true;
-            break;
-          } else {
-            print('Falha na descriptografia do item $attemptCount');
-          }
-        } catch (e) {
-          print('Erro na tentativa $attemptCount: $e');
-        }
-      }
-
-      if (!canDecrypt) {
-        _errorMessage.value = 'message_not_for_you'.tr;
-        print(
-            'Falha em todas as tentativas de descriptografia. Esta mensagem não foi criptografada para você.');
-        _isProcessing.value = false;
+      // Se for uma mensagem de texto puro (sem criptografia)
+      if (message.plainText.isNotEmpty && message.items.isEmpty) {
+        _showDecryptedMessage(message.plainText);
         return;
       }
 
-      print('Mensagem pode ser descriptografada. Adicionando à lista...');
-      // Adicionar a mensagem à lista, marcando como importada
-      // Create a new message with the imported flag
-      final importedMessage = EncryptedMessage(
-        id: message.id,
-        senderPublicKey: message.senderPublicKey,
-        items: message.items,
-        createdAt:
-            DateTime.now().toUtc(), // Use current time for imported messages
-        isImported: true, // Mark as imported
-      );
+      // Tentar descriptografar cada item até encontrar um que funcione
+      String? decryptedContent;
 
-      await _messageService.addMessage(importedMessage);
+      for (var item in message.items) {
+        try {
+          final attemptDecrypted = await _keyService.tryDecryptMessage(
+              item.encryptedText, userPrivateKey);
 
-      _isProcessing.value = false;
-      print('Mensagem importada com sucesso!');
-      Get.back();
+          if (attemptDecrypted != null) {
+            decryptedContent = attemptDecrypted;
+            break;
+          }
+        } catch (e) {
+          print('Erro ao tentar descriptografar item: $e');
+        }
+      }
+
+      if (decryptedContent == null) {
+        _errorMessage.value = 'message_not_for_you'.tr;
+        print(
+            'Falha em todas as tentativas de descriptografia. Esta mensagem não foi criptografada para você.');
+        return;
+      }
+
+      // Mostrar conteúdo descriptografado em um diálogo
+      _showDecryptedMessage(decryptedContent);
     } catch (e) {
       if (e.toString().contains('Invalid message structure')) {
         _errorMessage.value = 'invalid_message_structure'.tr;
       } else if (e.toString().contains('FormatException')) {
         _errorMessage.value = 'invalid_message_format'.tr;
       } else {
-        _errorMessage.value = 'error_importing_message'.tr;
+        _errorMessage.value = 'error_decrypting_message'.tr;
       }
-      print('Erro ao importar mensagem: $e');
+      print('Erro ao descriptografar mensagem: $e');
     } finally {
       _isProcessing.value = false;
+    }
+  }
+
+  void _showDecryptedMessage(String content) {
+    Get.dialog(
+      AlertDialog(
+        title: Text('decrypted_message'.tr),
+        content: SingleChildScrollView(
+          child: Text(content),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('close'.tr),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Método para extrair uma mensagem de uma string compartilhada
+  EncryptedMessage? _extractMessageFromSharedString(String sharedString) {
+    try {
+      // Limpar a string, removendo espaços, quebras de linha e outros caracteres não visíveis
+      String cleanedString = sharedString.trim();
+
+      // Logs para ajudar na depuração
+      print('Tentando extrair mensagem de string compartilhada...');
+      print('Comprimento original: ${sharedString.length}');
+      print('Comprimento após limpeza: ${cleanedString.length}');
+
+      String jsonString;
+      Map<String, dynamic> messageJson;
+
+      // Verificar o formato da mensagem
+      if (cleanedString.startsWith("sec-txt-")) {
+        print('Formato detectado: texto puro (sem criptografia)');
+        // Formato para texto puro
+        String base64String = cleanedString.substring("sec-txt-".length);
+
+        try {
+          // Decodificar o base64
+          List<int> decodedBytes = base64Decode(base64String);
+          jsonString = utf8.decode(decodedBytes);
+
+          // Analisar o JSON simplificado
+          final Map<String, dynamic> simpleJson = json.decode(jsonString);
+          print(
+              'JSON de texto puro decodificado com sucesso. Chaves: ${simpleJson.keys.join(", ")}');
+
+          // Converter para o formato padrão
+          messageJson = {
+            'id': simpleJson.containsKey('i')
+                ? simpleJson['i']
+                : DateTime.now().millisecondsSinceEpoch.toString(),
+            'senderPublicKey':
+                simpleJson.containsKey('s') ? simpleJson['s'] : 'anonymous',
+            'createdAt': simpleJson.containsKey('c')
+                ? simpleJson['c']
+                : DateTime.now().toIso8601String(),
+            'plainText': simpleJson['p'],
+            'items': [], // Lista vazia de itens
+            'isImported': true, // Marcar como importada
+          };
+        } catch (e) {
+          print('Erro na decodificação do formato de texto puro: $e');
+          throw FormatException('Erro na decodificação: $e');
+        }
+      } else if (cleanedString.startsWith("sec-")) {
+        print('Formato detectado: sc2 (otimizado)');
+        // Formato otimizado
+        String base64String = cleanedString.substring("sec-".length);
+
+        try {
+          // Decodificar o base64
+          List<int> decodedBytes = base64Decode(base64String);
+          jsonString = utf8.decode(decodedBytes);
+
+          // Analisar o JSON compacto
+          final Map<String, dynamic> compactJson = json.decode(jsonString);
+          print(
+              'JSON compacto decodificado com sucesso. Chaves: ${compactJson.keys.join(", ")}');
+
+          // Converter para o formato padrão, gerando IDs e timestamps
+          messageJson = {
+            'id': compactJson.containsKey('i')
+                ? compactJson['i']
+                : DateTime.now().millisecondsSinceEpoch.toString(),
+            'senderPublicKey':
+                compactJson.containsKey('s') ? compactJson['s'] : 'anonymous',
+            'createdAt': compactJson.containsKey('c')
+                ? compactJson['c']
+                : DateTime.now().toIso8601String(),
+            'items': (compactJson['t'] as List)
+                .map((item) => {
+                      'encryptedText': item['e'],
+                      'createdAt': item['d'],
+                    })
+                .toList(),
+          };
+        } catch (e) {
+          print('Erro na decodificação do formato sc2: $e');
+          throw FormatException('Erro na decodificação: $e');
+        }
+      } else {
+        // Verificar se é uma string JSON direta (sem codificação)
+        try {
+          print('Tentando decodificar como JSON direto...');
+          messageJson = json.decode(cleanedString);
+          print('JSON direto decodificado com sucesso');
+        } catch (e) {
+          print('Não é um formato válido de mensagem: $e');
+          return null;
+        }
+      }
+
+      // Verificar estrutura básica do JSON antes de tentar criar o objeto
+      if (!messageJson.containsKey('id') ||
+          !messageJson.containsKey('senderPublicKey') ||
+          !messageJson.containsKey('createdAt')) {
+        print(
+            'Estrutura de JSON inválida. Chaves presentes: ${messageJson.keys.join(", ")}');
+        return null;
+      }
+
+      try {
+        // Criar objeto EncryptedMessage a partir do JSON
+        final message = EncryptedMessage.fromJson(messageJson);
+        print('Objeto EncryptedMessage criado com sucesso. ID: ${message.id}');
+        if (message.items.isNotEmpty) {
+          print('A mensagem tem ${message.items.length} itens');
+        } else if (message.plainText.isNotEmpty) {
+          print('A mensagem tem texto puro (sem criptografia)');
+        }
+        return message;
+      } catch (e) {
+        print('Erro ao criar objeto EncryptedMessage: $e');
+        return null;
+      }
+    } catch (e) {
+      print('Erro geral ao extrair mensagem: $e');
+      return null;
     }
   }
 
@@ -222,7 +333,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
               height: 48,
               child: Obx(() => ElevatedButton(
                     onPressed: _hasText.value && !_isProcessing.value
-                        ? _importMessage
+                        ? _decryptMessage
                         : null,
                     child: _isProcessing.value
                         ? const SizedBox(
@@ -234,7 +345,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
                                   AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : Text('import'.tr),
+                        : Text('Decrypt Message'),
                   )),
             ),
           ],

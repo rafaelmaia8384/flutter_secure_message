@@ -1,94 +1,11 @@
 import 'dart:convert';
 import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
 import '../models/encrypted_message.dart';
-import 'key_service.dart';
 
 class MessageService extends GetxService {
-  final GetStorage _storage = GetStorage();
-  final KeyService _keyService = Get.find<KeyService>();
-  final RxList<EncryptedMessage> messages = <EncryptedMessage>[].obs;
-
   Future<MessageService> init() async {
     print('Inicializando MessageService...');
-    await loadMessages();
     return this;
-  }
-
-  @override
-  void onInit() {
-    super.onInit();
-    // loadMessages é chamado pelo método init() agora
-  }
-
-  Future<void> loadMessages() async {
-    try {
-      final storedMessages = _storage.read('messages');
-      print('Tentando carregar mensagens do armazenamento...');
-
-      if (storedMessages != null) {
-        print('Dados encontrados: ${storedMessages.length} caracteres');
-        final List<dynamic> jsonList = json.decode(storedMessages);
-        print('JSON decodificado com ${jsonList.length} mensagens');
-
-        messages.value =
-            jsonList.map((json) => EncryptedMessage.fromJson(json)).toList();
-
-        print('Mensagens carregadas com sucesso: ${messages.length} mensagens');
-      } else {
-        print('Nenhum dado de mensagem encontrado no armazenamento');
-        messages.clear();
-      }
-    } catch (e) {
-      print('Erro ao carregar mensagens: $e');
-      Get.snackbar(
-        'error'.tr,
-        'error_loading_messages'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    }
-  }
-
-  Future<void> saveMessages() async {
-    try {
-      final jsonList = messages.map((msg) => msg.toJson()).toList();
-      final jsonString = json.encode(jsonList);
-      await _storage.write('messages', jsonString);
-
-      print('Mensagens salvas: ${messages.length} mensagens');
-      print('Tamanho do JSON salvo: ${jsonString.length} caracteres');
-
-      // Verificar se os dados foram persistidos
-      final storedData = _storage.read('messages');
-      if (storedData != null) {
-        print(
-            'Dados confirmados no armazenamento: ${storedData.length} caracteres');
-      } else {
-        print(
-            'ERRO: Os dados não foram encontrados no armazenamento após salvar');
-      }
-    } catch (e) {
-      print('Erro ao salvar mensagens: $e');
-      Get.snackbar(
-        'error'.tr,
-        'error_saving_messages'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    }
-  }
-
-  Future<void> addMessage(EncryptedMessage message) async {
-    messages.add(message);
-    await saveMessages();
-  }
-
-  Future<void> deleteMessage(dynamic messageOrId) async {
-    if (messageOrId is EncryptedMessage) {
-      messages.removeWhere((msg) => msg.id == messageOrId.id);
-    } else if (messageOrId is String) {
-      messages.removeWhere((msg) => msg.id == messageOrId);
-    }
-    await saveMessages();
   }
 
   // Método para compactar uma mensagem para compartilhamento
@@ -103,12 +20,10 @@ class MessageService extends GetxService {
         if (message.plainText.isNotEmpty) {
           print('Compartilhando apenas o texto puro da mensagem');
 
-          // Criar JSON simplificado com apenas os metadados e o texto puro
+          // Criar JSON simplificado com apenas o texto puro
+          // Não precisamos de id, sender ou createdAt para texto puro
           final Map<String, dynamic> simpleJson = {
-            'i': message.id,
-            's': message.senderPublicKey,
-            'c': message.createdAt.toIso8601String(),
-            'p': message.plainText, // Incluir o texto puro
+            'p': message.plainText, // Incluir apenas o texto puro
           };
 
           // Converter para string JSON
@@ -127,9 +42,7 @@ class MessageService extends GetxService {
 
       // 1. Criar JSON compacto com chaves minimizadas
       final Map<String, dynamic> compactJson = {
-        'i': message.id,
-        's': message.senderPublicKey,
-        'c': message.createdAt.toIso8601String(),
+        // Incluir apenas a lista de itens criptografados
         't': message.items
             .map((item) => {
                   'e': item.encryptedText,
@@ -184,9 +97,14 @@ class MessageService extends GetxService {
 
           // Converter para o formato padrão
           messageJson = {
-            'id': simpleJson['i'],
-            'senderPublicKey': simpleJson['s'],
-            'createdAt': simpleJson['c'],
+            'id': simpleJson.containsKey('i')
+                ? simpleJson['i']
+                : DateTime.now().millisecondsSinceEpoch.toString(),
+            'senderPublicKey':
+                simpleJson.containsKey('s') ? simpleJson['s'] : 'anonymous',
+            'createdAt': simpleJson.containsKey('c')
+                ? simpleJson['c']
+                : DateTime.now().toIso8601String(),
             'plainText': simpleJson['p'],
             'items': [], // Lista vazia de itens
             'isImported': true, // Marcar como importada
@@ -210,11 +128,16 @@ class MessageService extends GetxService {
           print(
               'JSON compacto decodificado com sucesso. Chaves: ${compactJson.keys.join(", ")}');
 
-          // Converter para o formato padrão
+          // Converter para o formato padrão, gerando IDs e timestamps
           messageJson = {
-            'id': compactJson['i'],
-            'senderPublicKey': compactJson['s'],
-            'createdAt': compactJson['c'],
+            'id': compactJson.containsKey('i')
+                ? compactJson['i']
+                : DateTime.now().millisecondsSinceEpoch.toString(),
+            'senderPublicKey':
+                compactJson.containsKey('s') ? compactJson['s'] : 'anonymous',
+            'createdAt': compactJson.containsKey('c')
+                ? compactJson['c']
+                : DateTime.now().toIso8601String(),
             'items': (compactJson['t'] as List)
                 .map((item) => {
                       'encryptedText': item['e'],
@@ -257,7 +180,6 @@ class MessageService extends GetxService {
       // Verificar estrutura básica do JSON antes de tentar criar o objeto
       if (!messageJson.containsKey('id') ||
           !messageJson.containsKey('senderPublicKey') ||
-          !messageJson.containsKey('items') ||
           !messageJson.containsKey('createdAt')) {
         print(
             'Estrutura de JSON inválida. Chaves presentes: ${messageJson.keys.join(", ")}');
@@ -265,7 +187,7 @@ class MessageService extends GetxService {
       }
 
       // Verificar se 'items' é uma lista
-      if (!(messageJson['items'] is List)) {
+      if (messageJson.containsKey('items') && !(messageJson['items'] is List)) {
         print('Campo "items" não é uma lista');
         return null;
       }
@@ -274,7 +196,9 @@ class MessageService extends GetxService {
         // Criar objeto EncryptedMessage a partir do JSON
         final message = EncryptedMessage.fromJson(messageJson);
         print('Objeto EncryptedMessage criado com sucesso. ID: ${message.id}');
-        print('A mensagem tem ${message.items.length} itens');
+        if (message.items.isNotEmpty) {
+          print('A mensagem tem ${message.items.length} itens');
+        }
         return message;
       } catch (e) {
         print('Erro ao criar objeto EncryptedMessage: $e');
@@ -283,31 +207,6 @@ class MessageService extends GetxService {
     } catch (e) {
       print('Erro geral ao extrair mensagem: $e');
       return null;
-    }
-  }
-
-  Future<void> updateMessage(EncryptedMessage updatedMessage) async {
-    // Encontrar o índice da mensagem com o mesmo ID
-    final index = messages.indexWhere((msg) => msg.id == updatedMessage.id);
-
-    if (index >= 0) {
-      // Log da contagem de itens antes da atualização
-      final oldItemsCount = messages[index].items.length;
-
-      // Substituir a mensagem existente pela atualizada
-      messages[index] = updatedMessage;
-      await saveMessages();
-
-      // Log da contagem de itens após a atualização
-      final newItemsCount = updatedMessage.items.length;
-
-      print('Mensagem atualizada com sucesso. ID: ${updatedMessage.id}');
-      print(
-          'Contagem de itens criptografados: antes=$oldItemsCount, depois=$newItemsCount');
-    } else {
-      print(
-          'Erro: Mensagem não encontrada para atualização. ID: ${updatedMessage.id}');
-      throw Exception('Message not found for update');
     }
   }
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/key_service.dart';
-import '../services/message_service.dart';
 import '../models/encrypted_message.dart';
-import 'dart:math' as math;
+import 'dart:convert';
 
 class RecipientSelectionController extends GetxController {
   final KeyService _keyService = Get.find<KeyService>();
@@ -40,6 +40,7 @@ class RecipientSelectionController extends GetxController {
     final List<int> selectedIndexes = [];
     for (var i = 0; i < selectedRecipients.length; i++) {
       if (selectedRecipients[i]) {
+        selectedRecipients.value[i] = true;
         selectedIndexes.add(i);
       }
     }
@@ -63,13 +64,11 @@ class _NewMessagePageState extends State<NewMessagePage> {
   final TextEditingController _textController = TextEditingController();
   final RxBool _hasText = false.obs;
   final RxBool _isProcessing = false.obs;
-  late final MessageService _messageService;
 
   @override
   void initState() {
     super.initState();
     _textController.addListener(_updateHasText);
-    _messageService = Get.find<MessageService>();
   }
 
   void _updateHasText() {
@@ -130,7 +129,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
                                   AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : Text('save_message'.tr),
+                        : Text('Encrypt and Share'),
                   )),
             ),
           ),
@@ -143,64 +142,216 @@ class _NewMessagePageState extends State<NewMessagePage> {
     // Fechar o teclado e remover o foco
     FocusManager.instance.primaryFocus?.unfocus();
 
-    // Não mostra mais o diálogo de seleção de destinatários
-    // Vai direto para salvar a mensagem em texto simples
-    await _encryptAndSaveMessage();
+    // Verificar se o usuário possui chave antes de prosseguir
+    if (!_keyService.hasKeys.value) {
+      Get.dialog(
+        AlertDialog(
+          title: Text('no_public_key_title'.tr),
+          content: Text('need_public_key_for_encrypt'.tr),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: Text('close'.tr),
+            ),
+            TextButton(
+              onPressed: () {
+                Get.back();
+                Get.toNamed('/keys');
+              },
+              child: Text('generate_key'.tr),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Buscar a lista de chaves disponíveis
+    final keyList = List.from(_keyService.thirdPartyKeys);
+    keyList.insert(
+      0,
+      ThirdPartyKey(
+        name: 'me'.tr,
+        publicKey: _keyService.publicKey.value,
+        addedAt: DateTime.now(),
+      ),
+    );
+
+    List<String> selectedKeys = [];
+
+    // Mostrar diálogo para selecionar destinatários
+    await Get.dialog(
+      StatefulBuilder(
+        builder: (BuildContext context, StateSetter setState) {
+          return AlertDialog(
+            title: Text('select_recipients'.tr),
+            content: Container(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: keyList.length,
+                itemBuilder: (context, index) {
+                  final key = keyList[index];
+                  return CheckboxListTile(
+                    title: Text(key.name),
+                    value: selectedKeys.contains(key.publicKey),
+                    onChanged: (bool? value) {
+                      setState(() {
+                        if (value == true) {
+                          selectedKeys.add(key.publicKey);
+                        } else {
+                          selectedKeys.remove(key.publicKey);
+                        }
+                      });
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(),
+                child: Text('cancel'.tr),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (selectedKeys.isEmpty) {
+                    Get.snackbar(
+                      'error'.tr,
+                      'select_at_least_one'.tr,
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.red,
+                      colorText: Colors.white,
+                    );
+                    return;
+                  }
+                  Get.back(result: selectedKeys);
+                },
+                child: Text('confirm'.tr),
+              ),
+            ],
+          );
+        },
+      ),
+    ).then((value) async {
+      if (value == null || (value is List && value.isEmpty)) {
+        // Usuário cancelou a seleção
+        return;
+      }
+
+      _isProcessing.value = true;
+
+      try {
+        final messageText = _textController.text.trim();
+        final DateTime currentTimeUTC = DateTime.now().toUtc();
+        final String userPublicKey = _keyService.publicKey.value;
+        final String senderKey = userPublicKey.isNotEmpty
+            ? userPublicKey
+            : "anonymous-${DateTime.now().millisecondsSinceEpoch}";
+
+        // Criar lista de itens criptografados
+        final List<EncryptedMessageItem> encryptedItems = [];
+
+        // Criptografar para cada destinatário selecionado
+        for (final publicKey in value) {
+          final encryptedText = await _keyService.encryptMessage(
+            messageText,
+            publicKey,
+          );
+
+          encryptedItems.add(EncryptedMessageItem(
+            encryptedText: encryptedText,
+            createdAt: DateTime.now().toUtc(),
+          ));
+        }
+
+        // Criar mensagem temporária (não será armazenada)
+        final tempMessage = EncryptedMessage(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          senderPublicKey: senderKey,
+          items: encryptedItems,
+          createdAt: currentTimeUTC,
+          isImported: false,
+          plainText: messageText,
+        );
+
+        // Compactar para compartilhamento
+        final shareable = _compactMessageForSharing(tempMessage);
+
+        // Compartilhar
+        await Share.share(shareable);
+
+        // Voltar para a HomePage após compartilhar
+        Get.back();
+      } catch (e) {
+        Get.snackbar(
+          'error'.tr,
+          'error_encrypting'.tr,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        print('Erro ao criptografar: $e');
+      } finally {
+        _isProcessing.value = false;
+      }
+    });
   }
 
-  Future<void> _encryptAndSaveMessage() async {
-    _isProcessing.value = true;
-
-    final messageText = _textController.text.trim();
-
+  // Método para compactar uma mensagem para compartilhamento
+  String _compactMessageForSharing(EncryptedMessage message) {
     try {
-      // Garantir um tempo mínimo para o loading
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Verificar se a mensagem tem items criptografados para compartilhar
+      if (message.items.isEmpty) {
+        print('Aviso: Mensagem sem itens criptografados para compartilhar');
 
-      // Usar DateTime UTC para armazenamento global
-      final DateTime currentTimeUTC = DateTime.now().toUtc();
+        // Se a mensagem não tem itens criptografados, mas tem texto puro,
+        // retorna um formato simplificado para compartilhar apenas o texto
+        if (message.plainText.isNotEmpty) {
+          print('Compartilhando apenas o texto puro da mensagem');
 
-      // Obter a chave pública do usuário para identificar o remetente
-      final String userPublicKey = _keyService.publicKey.value;
+          // Criar JSON simplificado com apenas o texto puro
+          // Não precisamos de id, sender ou createdAt para texto puro
+          final Map<String, dynamic> simpleJson = {
+            'p': message.plainText, // Incluir apenas o texto puro
+          };
 
-      // Usar um valor padrão para o remetente caso o usuário não tenha chave
-      final String senderKey = userPublicKey.isNotEmpty
-          ? userPublicKey
-          : "anonymous-${DateTime.now().millisecondsSinceEpoch}";
+          // Converter para string JSON
+          final String jsonString = jsonEncode(simpleJson);
 
-      print("Salvando mensagem em texto simples sem criptografia imediata");
-      print(
-          "Remetente: ${senderKey.substring(0, math.min(10, senderKey.length))}...");
+          // Codificar em base64
+          final String base64String = base64Encode(utf8.encode(jsonString));
 
-      // Criar lista vazia de items - a criptografia será feita apenas no momento do compartilhamento
-      final List<EncryptedMessageItem> items = [];
+          // Retornar com um prefixo diferente para identificar que é texto puro
+          return "sec-txt-$base64String";
+        }
 
-      // Criar e salvar a mensagem com o texto original em plainText
-      final newMessage = EncryptedMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        senderPublicKey: senderKey,
-        items: items, // Lista vazia, pois não há criptografia ainda
-        createdAt: currentTimeUTC,
-        isImported: false,
-        plainText: messageText, // Armazenar o texto original
-      );
+        // Se não tiver nem texto puro, então realmente não há o que compartilhar
+        throw Exception('message_empty_for_sharing'.tr);
+      }
 
-      await _messageService.addMessage(newMessage);
+      // 1. Criar JSON compacto com chaves minimizadas
+      final Map<String, dynamic> compactJson = {
+        // Incluir apenas a lista de itens criptografados
+        't': message.items
+            .map((item) => {
+                  'e': item.encryptedText,
+                  'd': item.createdAt.toIso8601String(),
+                })
+            .toList(),
+      };
 
-      // Simplesmente voltar para a HomePage anterior
-      Get.back(result: true);
+      // 2. Converter para string JSON sem espaços extras
+      final String jsonString = jsonEncode(compactJson);
+
+      // 3. Codificar em base64
+      final String base64String = base64Encode(utf8.encode(jsonString));
+
+      // 4. Adicionar um prefixo para identificar o formato
+      return "sec-$base64String";
     } catch (e) {
-      // Mostrar mensagem de erro
-      Get.snackbar(
-        'error'.tr,
-        'error_saving_message'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      print('Error saving message: $e');
-    } finally {
-      _isProcessing.value = false;
+      print('Erro ao compactar mensagem: $e');
+      throw Exception('Erro ao compactar mensagem: $e');
     }
   }
 }

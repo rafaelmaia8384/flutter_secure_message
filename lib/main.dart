@@ -34,49 +34,6 @@ void main() async {
   runApp(const MyApp());
 }
 
-// Middleware para recarregar mensagens ao acessar a HomePage
-class HomeMiddleware extends GetMiddleware {
-  @override
-  RouteSettings? redirect(String? route) => null;
-
-  @override
-  GetPageBuilder? onPageBuildStart(GetPageBuilder? page) {
-    return page;
-  }
-
-  @override
-  Widget onPageBuilt(Widget page) {
-    return page;
-  }
-
-  @override
-  void onPageDispose() {}
-
-  @override
-  Future<GetNavConfig?> redirectDelegate(GetNavConfig route) async {
-    // Recarregar mensagens sempre que a HomePage for acessada
-    if (Get.currentRoute == '/home') {
-      final messageService = Get.find<MessageService>();
-      final appController = Get.find<AppController>();
-
-      // Armazenar a contagem atual de mensagens
-      final int previousCount = messageService.messages.length;
-
-      // Carregar mensagens do armazenamento
-      await messageService.loadMessages();
-
-      // Verificar se a contagem de mensagens mudou
-      if (messageService.messages.length > previousCount) {
-        // Se houver novas mensagens, sinalizar para a HomePage animar os itens
-        appController.triggerMessageAnimation();
-        print(
-            'Novas mensagens detectadas pelo middleware: ${messageService.messages.length - previousCount}');
-      }
-    }
-    return await super.redirectDelegate(route);
-  }
-}
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -101,7 +58,6 @@ class MyApp extends StatelessWidget {
         GetPage(
           name: '/home',
           page: () => HomePage(),
-          middlewares: [HomeMiddleware()],
         ),
         GetPage(
           name: '/keys',

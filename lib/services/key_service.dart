@@ -57,9 +57,6 @@ class KeyService extends GetxService {
   // Identificador para validar mensagens descriptografadas
   static const String MESSAGE_IDENTIFIER = "secure-chat:";
 
-  // Versão do formato de mensagem
-  static const String MESSAGE_VERSION = "V3";
-
   Future<KeyService> init() async {
     print("Inicializando KeyService...");
     try {
@@ -345,7 +342,6 @@ class KeyService extends GetxService {
 
         // 10. Combinar todos os elementos em um mapa
         final resultMap = {
-          'version': MESSAGE_VERSION,
           'keyNonce': base64Encode(sharedKeyNonce),
           'encryptedKey': base64Encode(encryptedSymmetricKey.cipherText),
           'keyMac': base64Encode(encryptedSymmetricKey.mac.bytes),
@@ -383,12 +379,6 @@ class KeyService extends GetxService {
       final jsonBytes = base64Decode(encryptedText);
       final jsonString = utf8.decode(jsonBytes);
       final Map<String, dynamic> data = json.decode(jsonString);
-
-      // Verificar versão para compatibilidade
-      final version = data['version'] as String;
-      if (version != MESSAGE_VERSION) {
-        throw Exception('Unsupported encryption version: $version');
-      }
 
       try {
         // 1. Extrair componentes da mensagem
