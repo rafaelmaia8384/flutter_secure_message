@@ -190,7 +190,7 @@ class AppTranslations extends Translations {
               'This app uses asymmetric encryption with key pairs:\n• Private Key: Kept secret on your device. Never share it.\n• Public Key: Can be shared with others who want to send you encrypted messages.',
           'how_encryption_works': 'How encryption works',
           'how_encryption_works_description':
-              'When you create a message:\n1. Your message is encrypted using the recipient\'s public key\n2. Only the recipient\'s private key can decrypt it',
+              'This app uses a hybrid encryption system:\n1. X25519 algorithm for secure key exchange (curve25519)\n2. AES-GCM 256-bit for symmetric encryption of messages\n\nWhen you send a message:\n• The app generates a random AES key\n• Your message is encrypted with this AES key\n• The AES key is encrypted with recipient\'s X25519 public key\n• Only the recipient\'s private key can unlock the AES key and decrypt the message',
           'sharing_public_key': 'Sharing your public key',
           'sharing_public_key_description':
               'Share your public key with others so they can send you encrypted messages. You can share it via:\n• QR Code\n• Copy & Paste\n• Share button\n\nYour public key is safe to share - it cannot be used to decrypt messages.',
@@ -199,7 +199,7 @@ class AppTranslations extends Translations {
               'Add public keys from your contacts to send them encrypted messages. You can:\n• Scan their QR code\n• Enter their key manually\n• Give them a recognizable name',
           'security_best_practices': 'Security best practices',
           'security_best_practices_description':
-              '• Generate a new key pair if you suspect your device is compromised\n• You can replace your keys, but remember that previously encrypted messages can only be decrypted with the original key\n• Never share your private key with anyone\n• Verify the identity of people whose public keys you add\n• Always use secure channels when sharing public keys',
+              '• This app never connects to the internet nor stores any data on servers\n• This app uses military-grade encryption (X25519 and AES-GCM 256-bit)\n• Messages are end-to-end encrypted and never stored on any device\n• Your private key never leaves your device\n• All encrypted data includes authentication codes to prevent tampering\n• Generate a new key pair if you suspect your device is compromised\n• You can replace your keys, but remember that previously encrypted messages can only be decrypted with the original key\n• Verify the identity of people whose public keys you add\n• Use secure channels when sharing public keys',
 
           // Key regeneration
           'regenerate_keys': 'Regenerate Keys',
