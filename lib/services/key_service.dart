@@ -5,15 +5,15 @@ import 'dart:async';
 import 'package:cryptography/cryptography.dart';
 
 /*
- * KeyService: Gerenciamento de chaves e criptografia para o aplicativo
+ * KeyService: Key management and encryption service for the application
  * 
- * Implementação de criptografia:
- * - Utiliza uma implementação simplificada de criptografia híbrida
- * - Chaves assimétricas geradas usando algoritmos seguros
- * - Armazena chaves no formato base64
- * - As chaves são armazenadas de forma segura usando flutter_secure_storage
- * - Cada mensagem tem um identificador adicionado como prefixo para validação
- * - Suporta armazenamento de chaves públicas de terceiros
+ * Encryption implementation:
+ * - Uses a simplified hybrid encryption implementation
+ * - Asymmetric keys generated using secure algorithms
+ * - Stores keys in base64 format
+ * - Keys are securely stored using flutter_secure_storage
+ * - Each message has an identifier prefix added for validation
+ * - Supports storing third-party public keys
  */
 
 class ThirdPartyKey {
@@ -63,7 +63,7 @@ class KeyService extends GetxService {
 
       return this;
     } catch (e) {
-      return this; // Retorna o serviço mesmo com erro para evitar falhas na aplicação
+      return this; // Returns the service even with errors to prevent application failures
     }
   }
 
@@ -221,14 +221,14 @@ class KeyService extends GetxService {
 
   bool _isValidKeyFormat(String key) {
     try {
-      // Verificar se a chave está em formato base64 válido
+      // Check if the key is in valid base64 format
       if (key.isEmpty) return false;
 
-      // Regra simplificada para verificação de base64 válido
+      // Simplified rule for valid base64 verification
       final RegExp base64Pattern = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
       if (!base64Pattern.hasMatch(key)) return false;
 
-      // Tentar decodificar para verificar validade
+      // Try to decode to verify validity
       try {
         base64Decode(key);
         return true;
@@ -252,13 +252,13 @@ class KeyService extends GetxService {
         throw Exception('Public key cannot be empty');
       }
 
-      // Adicionar o identificador ao início da mensagem antes de criptografar
+      // Add identifier to the beginning of the message before encrypting
       final messageWithIdentifier = MESSAGE_IDENTIFIER + message;
 
-      // Converter a mensagem para bytes
+      // Convert message to bytes
       final messageBytes = utf8.encode(messageWithIdentifier);
 
-      // Converter a chave pública de base64 para bytes
+      // Convert public key from base64 to bytes
       final recipientPublicKeyBytes = base64Decode(recipientPublicKeyBase64);
       final recipientPublicKeyObj = SimplePublicKey(
         recipientPublicKeyBytes,
@@ -266,39 +266,39 @@ class KeyService extends GetxService {
       );
 
       try {
-        // 1. Gerar uma chave aleatória para criptografia
+        // 1. Generate a random key for encryption
         final secretKey = await _cipher.newSecretKey();
 
-        // 2. Gerar um nonce aleatório
+        // 2. Generate a random nonce
         final nonce = _cipher.newNonce();
 
-        // 3. Criptografar a mensagem com AES-GCM
+        // 3. Encrypt the message with AES-GCM
         final secretBox = await _cipher.encrypt(
           messageBytes,
           secretKey: secretKey,
           nonce: nonce,
         );
 
-        // 4. Extrair a chave simétrica em bytes
+        // 4. Extract symmetric key in bytes
         final symmetricKeyBytes = await secretKey.extractBytes();
 
-        // 5. Carregar a chave privada do remetente
+        // 5. Load sender's private key
         final senderPrivateKeyBytes = base64Decode(privateKey.value);
 
-        // 6. Criar um par de chaves temporário para o remetente
+        // 6. Create a temporary key pair for the sender
         final senderKeyPair = await _keyExchangeAlgorithm
             .newKeyPairFromSeed(senderPrivateKeyBytes);
 
-        // 7. Calcular a chave compartilhada usando X25519
+        // 7. Calculate shared key using X25519
         final sharedSecret = await _keyExchangeAlgorithm.sharedSecretKey(
           keyPair: senderKeyPair,
           remotePublicKey: recipientPublicKeyObj,
         );
 
-        // 8. Extrair a chave compartilhada em bytes
+        // 8. Extract shared key in bytes
         final sharedSecretBytes = await sharedSecret.extractBytes();
 
-        // 9. Usar a chave compartilhada para criptografar a chave simétrica
+        // 9. Use shared key to encrypt the symmetric key
         final sharedKeyCipher = AesGcm.with256bits();
         final sharedKeyNonce = sharedKeyCipher.newNonce();
         final encryptedSymmetricKey = await sharedKeyCipher.encrypt(
@@ -307,7 +307,7 @@ class KeyService extends GetxService {
           nonce: sharedKeyNonce,
         );
 
-        // 10. Combinar todos os elementos em um mapa
+        // 10. Combine all elements in a map
         final resultMap = {
           'keyNonce': base64Encode(sharedKeyNonce),
           'encryptedKey': base64Encode(encryptedSymmetricKey.cipherText),
@@ -318,7 +318,7 @@ class KeyService extends GetxService {
           'senderPublicKey': publicKey.value,
         };
 
-        // 11. Codificar o resultado em JSON e base64 para transferência segura
+        // 11. Encode result in JSON and base64 for secure transfer
         final encodedJson = json.encode(resultMap);
         final encodedBase64 = base64Encode(utf8.encode(encodedJson));
         return encodedBase64;
@@ -337,13 +337,13 @@ class KeyService extends GetxService {
         throw Exception('Private key cannot be empty');
       }
 
-      // Decodificar a mensagem de base64
+      // Decode message from base64
       final jsonBytes = base64Decode(encryptedText);
       final jsonString = utf8.decode(jsonBytes);
       final Map<String, dynamic> data = json.decode(jsonString);
 
       try {
-        // 1. Extrair componentes da mensagem
+        // 1. Extract message components
         final keyNonce = base64Decode(data['keyNonce'] as String);
         final encryptedKey = base64Decode(data['encryptedKey'] as String);
         final keyMac = Mac(base64Decode(data['keyMac'] as String));
@@ -351,12 +351,12 @@ class KeyService extends GetxService {
         final encryptedMessage = base64Decode(data['message'] as String);
         final messageMac = Mac(base64Decode(data['mac'] as String));
 
-        // 2. Obter a chave pública do remetente
+        // 2. Get sender's public key
         String senderPublicKeyStr;
         if (data.containsKey('senderPublicKey')) {
           senderPublicKeyStr = data['senderPublicKey'] as String;
         } else {
-          // Para compatibilidade com versões anteriores, usar nossa própria chave pública
+          // For compatibility with previous versions, use our own public key
           senderPublicKeyStr = publicKey.value;
         }
 
@@ -366,23 +366,23 @@ class KeyService extends GetxService {
           type: KeyPairType.x25519,
         );
 
-        // 3. Carregar a chave privada do destinatário
+        // 3. Load recipient's private key
         final privateKeyBytes = base64Decode(privateKeyStr);
 
-        // 4. Criamos um par de chaves temporário para o destinatário
+        // 4. Create a temporary key pair for the recipient
         final receiverKeyPair =
             await _keyExchangeAlgorithm.newKeyPairFromSeed(privateKeyBytes);
 
-        // 5. Calcular a chave compartilhada usando X25519
+        // 5. Calculate shared key using X25519
         final sharedSecret = await _keyExchangeAlgorithm.sharedSecretKey(
           keyPair: receiverKeyPair,
           remotePublicKey: senderPublicKey,
         );
 
-        // 6. Extrair a chave compartilhada em bytes
+        // 6. Extract shared key in bytes
         final sharedSecretBytes = await sharedSecret.extractBytes();
 
-        // 7. Usar a chave compartilhada para descriptografar a chave simétrica
+        // 7. Use shared key to decrypt the symmetric key
         final sharedKeyCipher = AesGcm.with256bits();
         final encryptedKeyBox = SecretBox(
           encryptedKey,
@@ -395,7 +395,7 @@ class KeyService extends GetxService {
           secretKey: SecretKey(sharedSecretBytes),
         );
 
-        // 8. Usar a chave simétrica para descriptografar a mensagem
+        // 8. Use symmetric key to decrypt the message
         final messageBox = SecretBox(
           encryptedMessage,
           nonce: messageNonce,
@@ -407,10 +407,10 @@ class KeyService extends GetxService {
           secretKey: SecretKey(symmetricKeyBytes),
         );
 
-        // 9. Converter os bytes de volta para string
+        // 9. Convert bytes back to string
         final decryptedText = utf8.decode(decryptedBytes);
 
-        // 10. Verificar se a mensagem contém o identificador válido
+        // 10. Check if message contains valid identifier
         if (decryptedText.startsWith(MESSAGE_IDENTIFIER)) {
           return decryptedText.substring(MESSAGE_IDENTIFIER.length);
         } else {
@@ -448,7 +448,7 @@ class KeyService extends GetxService {
         return false;
       }
 
-      // Obter as chaves do usuário
+      // Get user keys
       final publicKeyStr = publicKey.value;
       final privateKeyStr = privateKey.value;
 
@@ -456,19 +456,19 @@ class KeyService extends GetxService {
         return false;
       }
 
-      // Mensagem de teste
-      final testMessage = "Testando criptografia para mim mesmo.";
+      // Test message
+      final testMessage = "Testing self encryption.";
 
-      // Criptografa a mensagem usando a API de alto nível
+      // Encrypt message using high-level API
       try {
-        // Criptografar usando a nova implementação
+        // Encrypt using new implementation
         final encryptedBase64 = await encryptMessage(testMessage, publicKeyStr);
 
-        // Descriptografar usando a nova implementação
+        // Decrypt using new implementation
         final decryptedMessage =
             await decryptMessage(encryptedBase64, privateKeyStr);
 
-        // Verifica se o conteúdo está correto
+        // Check if content is correct
         final success = (decryptedMessage == testMessage);
 
         return success;
@@ -482,7 +482,7 @@ class KeyService extends GetxService {
 
   Future<bool> forceRegenerateKeys() async {
     try {
-      // Limpar chaves existentes
+      // Clear existing keys
       await _storage.delete(key: 'public_key');
       await _storage.delete(key: 'private_key');
 
@@ -490,7 +490,7 @@ class KeyService extends GetxService {
       privateKey.value = '';
       hasKeys.value = false;
 
-      // Gerar novas chaves
+      // Generate new keys
       final result = await generateNewKeys();
 
       return result;
@@ -507,17 +507,17 @@ class KeyService extends GetxService {
     if (isValidDecryptedMessage(message)) {
       return message.substring(MESSAGE_IDENTIFIER.length);
     }
-    return message; // Retorna a mensagem original se não tiver o identificador
+    return message; // Returns original message if it doesn't have the identifier
   }
 
-  // Testa a criptografia entre usuários diferentes
+  // Tests encryption between different users
   Future<bool> testUserToCommunication() async {
     try {
-      // Chaves do usuário atual (Alice)
+      // Current user keys (Alice)
       final alicePublicKey = publicKey.value;
       final alicePrivateKey = privateKey.value;
 
-      // Criar chaves para um usuário de teste (Bob)
+      // Create keys for test user (Bob)
       final bobKeyPair = await _keyExchangeAlgorithm.newKeyPair();
       final bobPrivateKeyBytes = await bobKeyPair.extractPrivateKeyBytes();
       final bobPublicKeyObj = await bobKeyPair.extractPublicKey();
@@ -526,41 +526,41 @@ class KeyService extends GetxService {
       final bobPublicKey = base64Encode(bobPublicKeyBytes);
       final bobPrivateKey = base64Encode(bobPrivateKeyBytes);
 
-      // Mensagem de teste
-      final testMessage = "Testando comunicação entre Alice e Bob.";
+      // Test message
+      final testMessage = "Testing communication between Alice and Bob.";
       try {
-        // Alice criptografa mensagem para Bob
+        // Alice encrypts message for Bob
         final encryptedForBob = await encryptMessage(testMessage, bobPublicKey);
 
-        // Salvar chave pública de Alice atual
+        // Save current Alice's public key
         final currentPublicKey = publicKey.value;
 
-        // Simular que estamos no dispositivo de Bob
-        // (usando a chave privada de Bob e a chave pública de Alice)
-        publicKey.value = alicePublicKey; // Define chave pública de Alice
+        // Simulate we're on Bob's device
+        // (using Bob's private key and Alice's public key)
+        publicKey.value = alicePublicKey; // Set Alice's public key
 
-        // Bob descriptografa mensagem com sua chave privada
+        // Bob decrypts message with his private key
         final decryptedByBob =
             await decryptMessage(encryptedForBob, bobPrivateKey);
 
-        // Restaurar estado
+        // Restore state
         publicKey.value = currentPublicKey;
 
         final success1 = (decryptedByBob == testMessage);
 
-        // Teste 2: Bob criptografa para Alice
+        // Test 2: Bob encrypts for Alice
 
-        // Simular que estamos no dispositivo de Bob
-        publicKey.value = bobPublicKey; // Agora Bob é o remetente
+        // Simulate we're on Bob's device
+        publicKey.value = bobPublicKey; // Now Bob is the sender
 
-        // Bob criptografa mensagem para Alice
+        // Bob encrypts message for Alice
         final encryptedForAlice =
             await encryptMessage(testMessage, alicePublicKey);
 
-        // Restaurar estado (voltamos a ser Alice)
+        // Restore state (back to being Alice)
         publicKey.value = alicePublicKey;
 
-        // Alice descriptografa mensagem com sua chave privada
+        // Alice decrypts message with her private key
         final decryptedByAlice =
             await decryptMessage(encryptedForAlice, alicePrivateKey);
 

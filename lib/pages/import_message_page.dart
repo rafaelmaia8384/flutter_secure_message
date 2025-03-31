@@ -23,13 +23,13 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
     super.initState();
     _textController.addListener(_updateHasText);
 
-    // Verificar se o usuário tem chave ao iniciar a página
+    // Check if user has a key when starting the page
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkUserHasKey();
     });
   }
 
-  // Método para verificar se o usuário tem chave
+  // Method to check if user has a key
   void _checkUserHasKey() {
     if (!_keyService.hasKeys.value) {
       Get.dialog(
@@ -40,21 +40,22 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
             TextButton(
               onPressed: () {
                 Get.back();
-                Get.back(); // Volta para a página anterior
+                Get.back(); // Return to previous page
               },
               child: Text('close'.tr),
             ),
             TextButton(
               onPressed: () {
                 Get.back();
-                Get.back(); // Volta para a página anterior
-                Get.toNamed('/keys'); // Navega para a página de chaves
+                Get.back(); // Return to previous page
+                Get.toNamed('/keys'); // Navigate to keys page
               },
               child: Text('generate_key'.tr),
             ),
           ],
         ),
-        barrierDismissible: false, // Impede fechar clicando fora do diálogo
+        barrierDismissible:
+            false, // Prevent closing by clicking outside the dialog
       );
     }
   }
@@ -78,7 +79,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
     _errorMessage.value = '';
 
     try {
-      // Garantir um tempo mínimo para o loading
+      // Ensure minimum loading time
       await Future.delayed(const Duration(milliseconds: 800));
 
       String inputText = _textController.text.trim();
@@ -86,7 +87,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
       print('Iniciando descriptografia de mensagem...');
       print('Tamanho do texto: ${inputText.length} caracteres');
 
-      // Extrair a mensagem do texto compartilhado
+      // Method to extract a message from a shared string
       final message = _extractMessageFromSharedString(inputText);
 
       if (message == null) {
@@ -102,7 +103,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
 
       final userPrivateKey = _keyService.privateKey.value;
 
-      // Tentar descriptografar cada item até encontrar um que funcione
+      // Try to decrypt each item until finding one that works
       String? decryptedContent;
 
       for (var item in message.items) {
@@ -126,7 +127,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
         return;
       }
 
-      // Mostrar conteúdo descriptografado em um diálogo
+      // Show decrypted content in a dialog
       _showDecryptedMessage(decryptedContent);
     } catch (e) {
       if (e.toString().contains('Invalid message structure')) {
@@ -167,13 +168,13 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
     );
   }
 
-  // Método para extrair uma mensagem de uma string compartilhada
+  // Method to extract a message from a shared string
   EncryptedMessage? _extractMessageFromSharedString(String sharedString) {
     try {
-      // Limpar a string, removendo espaços, quebras de linha e outros caracteres não visíveis
+      // Clean the string, removing spaces, line breaks and other invisible characters
       String cleanedString = sharedString.trim();
 
-      // Logs para ajudar na depuração
+      // Logs to help with debugging
       print('Tentando extrair mensagem de string compartilhada...');
       print('Comprimento original: ${sharedString.length}');
       print('Comprimento após limpeza: ${cleanedString.length}');
@@ -195,7 +196,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
           print(
               'JSON compacto decodificado com sucesso. Chaves: ${compactJson.keys.join(", ")}');
 
-          // Converter para o formato padrão
+          // Convert to standard format
           messageJson = {
             'senderPublicKey':
                 compactJson.containsKey('s') ? compactJson['s'] : 'anonymous',
@@ -213,7 +214,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
         return null;
       }
 
-      // Verificar estrutura básica do JSON antes de tentar criar o objeto
+      // Check basic JSON structure before trying to create the object
       if (!messageJson.containsKey('senderPublicKey')) {
         print(
             'Estrutura de JSON inválida. Chaves presentes: ${messageJson.keys.join(", ")}');

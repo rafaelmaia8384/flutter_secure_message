@@ -143,7 +143,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
     // Fechar o teclado e remover o foco
     FocusManager.instance.primaryFocus?.unfocus();
 
-    // Verificar se o usuário possui chave antes de prosseguir
+    // Check if user has a key before proceeding
     if (!_keyService.hasKeys.value) {
       Get.dialog(
         AlertDialog(
@@ -167,7 +167,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
       return;
     }
 
-    // Buscar a lista de chaves disponíveis
+    // Get list of available keys
     final keyList = List.from(_keyService.thirdPartyKeys);
     keyList.insert(
       0,
@@ -180,7 +180,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
 
     List<String> selectedKeys = [];
 
-    // Mostrar diálogo para selecionar destinatários
+    // Show dialog to select recipients
     await Get.dialog(
       StatefulBuilder(
         builder: (BuildContext context, StateSetter setState) {
@@ -236,7 +236,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
       ),
     ).then((value) async {
       if (value == null || (value is List && value.isEmpty)) {
-        // Usuário cancelou a seleção
+        // User cancelled the selection
         return;
       }
 
@@ -247,10 +247,10 @@ class _NewMessagePageState extends State<NewMessagePage> {
         final String userPublicKey = _keyService.publicKey.value;
         final String senderKey = userPublicKey;
 
-        // Criar lista de itens criptografados
+        // Encrypt for each selected recipient
         final List<EncryptedMessageItem> encryptedItems = [];
 
-        // Criptografar para cada destinatário selecionado
+        // Encrypt for each selected recipient
         for (final publicKey in value) {
           final encryptedText = await _keyService.encryptMessage(
             messageText,
@@ -262,20 +262,20 @@ class _NewMessagePageState extends State<NewMessagePage> {
           ));
         }
 
-        // Criar mensagem temporária (não será armazenada)
+        // Create temporary message (will not be stored)
         final tempMessage = EncryptedMessage(
           senderPublicKey: senderKey,
           items: encryptedItems,
           isImported: false,
         );
 
-        // Compactar para compartilhamento
+        // Compact a message for sharing
         final shareable = _compactMessageForSharing(tempMessage);
 
         // Compartilhar
         await Share.share(shareable);
 
-        // Voltar para a HomePage após compartilhar
+        // Return to HomePage after sharing
         Get.back();
       } catch (e) {
         Get.snackbar(
@@ -292,20 +292,20 @@ class _NewMessagePageState extends State<NewMessagePage> {
     });
   }
 
-  // Método para compactar uma mensagem para compartilhamento
+  // Method to compact a message for sharing
   String _compactMessageForSharing(EncryptedMessage message) {
     try {
-      // Verificar se a mensagem tem items criptografados para compartilhar
+      // Check if there are items to share
       if (message.items.isEmpty) {
         print('Aviso: Mensagem sem itens criptografados para compartilhar');
 
-        // Se não há itens para compartilhar, não há o que fazer
+        // If there are no items to share, nothing to do
         throw Exception('message_empty_for_sharing'.tr);
       }
 
-      // 1. Criar JSON compacto com chaves minimizadas
+      // 1. Create compact JSON with minimized keys
       final Map<String, dynamic> compactJson = {
-        // Incluir apenas a lista de itens criptografados
+        // Include only the list of encrypted items
         't': message.items
             .map((item) => {
                   'e': item.encryptedText,
@@ -313,13 +313,13 @@ class _NewMessagePageState extends State<NewMessagePage> {
             .toList(),
       };
 
-      // 2. Converter para string JSON sem espaços extras
+      // 2. Convert to JSON string without extra spaces
       final String jsonString = jsonEncode(compactJson);
 
-      // 3. Codificar em base64
+      // 3. Encode to base64
       final String base64String = base64Encode(utf8.encode(jsonString));
 
-      // 4. Adicionar um prefixo para identificar o formato
+      // 4. Add a prefix to identify the format
       return "sec-msg:$base64String";
     } catch (e) {
       print('Erro ao compactar mensagem: $e');

@@ -4,24 +4,24 @@ import '../models/encrypted_message.dart';
 
 class MessageService extends GetxService {
   Future<MessageService> init() async {
-    print('Inicializando MessageService...');
+    print('Inicializing MessageService...');
     return this;
   }
 
-  // Método para compactar uma mensagem para compartilhamento
+  // Method to compact a message for sharing
   String compactMessageForSharing(EncryptedMessage message) {
     try {
-      // Verificar se a mensagem tem items criptografados para compartilhar
+      // Check if the message has encrypted items to share
       if (message.items.isEmpty) {
-        print('Aviso: Mensagem sem itens criptografados para compartilhar');
+        print('Warning: Message has no encrypted items to share');
 
-        // Se não há itens para compartilhar, não há o que fazer
+        // If there are no items to share, nothing to do
         throw Exception('message_empty_for_sharing'.tr);
       }
 
-      // 1. Criar JSON compacto com chaves minimizadas
+      // 1. Create compact JSON with minimized keys
       final Map<String, dynamic> compactJson = {
-        // Incluir apenas a lista de itens criptografados
+        // Include only the list of encrypted items
         't': message.items
             .map((item) => {
                   'e': item.encryptedText,
@@ -29,50 +29,50 @@ class MessageService extends GetxService {
             .toList(),
       };
 
-      // 2. Converter para string JSON sem espaços extras
+      // 2. Convert to JSON string without extra spaces
       final String jsonString = jsonEncode(compactJson);
 
-      // 3. Codificar em base64
+      // 3. Encode to base64
       final String base64String = base64Encode(utf8.encode(jsonString));
 
-      // 4. Adicionar um prefixo para identificar o formato
+      // 4. Add a prefix to identify the format
       return "sec-msg:$base64String";
     } catch (e) {
-      print('Erro ao compactar mensagem: $e');
-      throw Exception('Erro ao compactar mensagem: $e');
+      print('Error compacting message: $e');
+      throw Exception('Error compacting message: $e');
     }
   }
 
-  // Método para extrair uma mensagem de uma string compartilhada
+  // Method to extract a message from a shared string
   EncryptedMessage? extractMessageFromSharedString(String sharedString) {
     try {
-      // Limpar a string, removendo espaços, quebras de linha e outros caracteres não visíveis
+      // Clean the string, removing spaces, line breaks and other invisible characters
       String cleanedString = sharedString.trim();
 
-      // Logs para ajudar na depuração
-      print('Tentando extrair mensagem de string compartilhada...');
-      print('Comprimento original: ${sharedString.length}');
-      print('Comprimento após limpeza: ${cleanedString.length}');
+      // Logs to help with debugging
+      print('Trying to extract message from shared string...');
+      print('Original length: ${sharedString.length}');
+      print('Length after cleaning: ${cleanedString.length}');
 
       String jsonString;
       Map<String, dynamic> messageJson;
 
-      // Verificar o formato da mensagem
+      // Check the format of the message
       if (cleanedString.startsWith("sec-msg:")) {
-        print('Formato detectado: formato padrão');
+        print('Format detected: standard format');
         String base64String = cleanedString.substring("sec-msg:".length);
 
         try {
-          // Decodificar o base64
+          // Decode the base64
           List<int> decodedBytes = base64Decode(base64String);
           jsonString = utf8.decode(decodedBytes);
 
-          // Analisar o JSON compacto
+          // Analyze the compact JSON
           final Map<String, dynamic> compactJson = json.decode(jsonString);
           print(
-              'JSON compacto decodificado com sucesso. Chaves: ${compactJson.keys.join(", ")}');
+              'Successfully decoded compact JSON. Keys: ${compactJson.keys.join(", ")}');
 
-          // Converter para o formato padrão
+          // Convert to standard format
           messageJson = {
             'senderPublicKey':
                 compactJson.containsKey('s') ? compactJson['s'] : 'anonymous',
@@ -85,48 +85,48 @@ class MessageService extends GetxService {
             'isImported': true,
           };
         } catch (e) {
-          print('Erro na decodificação: $e');
-          throw FormatException('Erro na decodificação: $e');
+          print('Error in decoding: $e');
+          throw FormatException('Error in decoding: $e');
         }
       } else {
-        // Verificar se é uma string JSON direta (sem codificação)
+        // Check if it's a direct JSON string (without encoding)
         try {
-          print('Tentando decodificar como JSON direto...');
+          print('Trying to decode as direct JSON...');
           messageJson = json.decode(cleanedString);
-          print('JSON direto decodificado com sucesso');
+          print('Direct JSON decoded successfully');
         } catch (e) {
-          print('Não é um formato válido de mensagem: $e');
+          print('Not a valid message format: $e');
           return null;
         }
       }
 
-      // Verificar estrutura básica do JSON antes de tentar criar o objeto
+      // Check basic JSON structure before trying to create the object
       if (!messageJson.containsKey('senderPublicKey')) {
         print(
-            'Estrutura de JSON inválida. Chaves presentes: ${messageJson.keys.join(", ")}');
+            'Invalid JSON structure. Present keys: ${messageJson.keys.join(", ")}');
         return null;
       }
 
-      // Verificar se 'items' é uma lista
+      // Check if 'items' is a list
       if (messageJson.containsKey('items') && !(messageJson['items'] is List)) {
-        print('Campo "items" não é uma lista');
+        print('"items" is not a list');
         return null;
       }
 
       try {
-        // Criar objeto EncryptedMessage a partir do JSON
+        // Create EncryptedMessage object from JSON
         final message = EncryptedMessage.fromJson(messageJson);
-        print('Objeto EncryptedMessage criado com sucesso.');
+        print('EncryptedMessage object created successfully.');
         if (message.items.isNotEmpty) {
-          print('A mensagem tem ${message.items.length} itens');
+          print('The message has ${message.items.length} items');
         }
         return message;
       } catch (e) {
-        print('Erro ao criar objeto EncryptedMessage: $e');
+        print('Error creating EncryptedMessage object: $e');
         return null;
       }
     } catch (e) {
-      print('Erro geral ao extrair mensagem: $e');
+      print('General error extracting message: $e');
       return null;
     }
   }

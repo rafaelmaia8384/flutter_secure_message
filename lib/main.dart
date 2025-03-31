@@ -14,7 +14,7 @@ import 'package:intl/date_symbol_data_local.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializar os dados de formatação de data para todos os locales
+  // Initialize date formatting data for all locales
   await initializeDateFormatting();
 
   // Initialize GetX services

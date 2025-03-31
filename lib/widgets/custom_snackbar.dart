@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-/// Um serviço de Snackbar personalizado que não interfere nas interações com diálogos
+/// A custom Snackbar service that doesn't interfere with dialog interactions
 class CustomSnackbar {
-  /// Mostra um snackbar que não interfere nos diálogos abertos
+  /// Shows a snackbar that doesn't interfere with open dialogs
   static void show({
     required String title,
     required String message,
@@ -45,7 +45,7 @@ class CustomSnackbar {
     }
   }
 
-  /// Mostra um diálogo de confirmação após fechar todos os snackbars
+  /// Shows a confirmation dialog after closing all snackbars
   static Future<bool?> showConfirmDialog({
     required String title,
     required String message,
