@@ -152,9 +152,15 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
   void _showDecryptedMessage(String content) {
     Get.dialog(
       AlertDialog(
+        scrollable: true,
         title: Text('decrypted_message'.tr),
         content: SingleChildScrollView(
-          child: Text(content),
+          child: Text(content,
+              style: TextStyle(
+                fontSize: 16,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+                fontWeight: FontWeight.bold,
+              )),
         ),
         actions: [
           TextButton(
@@ -339,10 +345,10 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
                           : null,
                       child: _isProcessing.value
                           ? const SizedBox(
-                              width: 24,
-                              height: 24,
+                              width: 14,
+                              height: 14,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
+                                strokeWidth: 1,
                                 valueColor:
                                     AlwaysStoppedAnimation<Color>(Colors.white),
                               ),

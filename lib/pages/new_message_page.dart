@@ -122,10 +122,10 @@ class _NewMessagePageState extends State<NewMessagePage> {
                           : null,
                       child: _isProcessing.value
                           ? const SizedBox(
-                              width: 24,
-                              height: 24,
+                              width: 14,
+                              height: 14,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
+                                strokeWidth: 1,
                                 valueColor:
                                     AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
