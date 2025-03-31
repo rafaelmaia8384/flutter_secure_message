@@ -121,7 +121,7 @@ class AppTranslations extends Translations {
           'no_third_party_keys_message':
               'You need to add at least one third party key before creating encrypted messages.',
           'add_third_party_keys_message':
-              'Add public keys from your contacts to send encrypted messages to them.',
+              'Ask for your contacts\' public keys to send encrypted messages to them.',
           'add_third_party_key': 'Add Key',
           'processing_message': 'Processing message...',
           'message_from_unknown': 'Unknown Contact',

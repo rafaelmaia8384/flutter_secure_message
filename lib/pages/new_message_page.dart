@@ -40,7 +40,6 @@ class RecipientSelectionController extends GetxController {
     final List<int> selectedIndexes = [];
     for (var i = 0; i < selectedRecipients.length; i++) {
       if (selectedRecipients[i]) {
-        selectedRecipients.value[i] = true;
         selectedIndexes.add(i);
       }
     }

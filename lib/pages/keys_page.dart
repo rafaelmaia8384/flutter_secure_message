@@ -141,12 +141,6 @@ class _KeysPageState extends State<KeysPage> {
                             tooltip: 'show_qr'.tr,
                           ),
                           IconButton(
-                            icon: const Icon(Icons.check_circle_outline,
-                                color: Colors.white),
-                            onPressed: _testCurrentKeys,
-                            tooltip: 'test_keys'.tr,
-                          ),
-                          IconButton(
                             icon: const Icon(Icons.refresh),
                             onPressed: () => _showReplaceKeyDialog(),
                             tooltip: 'replace_key'.tr,
@@ -831,84 +825,6 @@ class _KeysPageState extends State<KeysPage> {
         ],
       ),
     );
-  }
-
-  Future<void> _testCurrentKeys() async {
-    if (!_keyService.hasKeys.value) {
-      Get.snackbar(
-        'error'.tr,
-        'no_keys_to_test'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    try {
-      // Mostrar um diálogo de progresso enquanto o teste é executado
-      final completer = Completer<bool>();
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          // Executar o teste em segundo plano
-          Future.microtask(() async {
-            try {
-              final result = _keyService.testSelfEncryption();
-              completer.complete(result);
-            } catch (e) {
-              completer.complete(false);
-            }
-          });
-
-          return AlertDialog(
-            title: Text('testing_keys'.tr),
-            content: Row(
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(width: 20),
-                Expanded(child: Text('please_wait'.tr)),
-              ],
-            ),
-          );
-        },
-      );
-
-      // Aguardar o resultado do teste
-      final result = await completer.future;
-
-      // Fechar o diálogo de progresso
-      Navigator.of(context, rootNavigator: true).pop();
-
-      // Mostrar o resultado
-      if (result) {
-        Get.snackbar(
-          'success'.tr,
-          'keys_test_passed'.tr,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } else {
-        Get.snackbar(
-          'error'.tr,
-          'keys_test_failed'.tr,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-      }
-    } catch (e) {
-      Get.snackbar(
-        'error'.tr,
-        'error_testing_keys'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
   }
 }
 
