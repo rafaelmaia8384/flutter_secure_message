@@ -180,6 +180,14 @@ class AppTranslations extends Translations {
           'replace': 'Replace',
           'decrypted_message': 'Decrypted',
 
+          // HomePage specific
+          'encrypt_new_message': 'Encrypt new Message',
+          'decrypt_message': 'Decrypt Message',
+          'how_it_works': 'How it works',
+          'buy_me_a_coffee': 'Buy me a coffee',
+          'internet_connection_info':
+              'This app does not require an internet connection. It uses a hybrid encryption system to encrypt and decrypt messages.',
+
           // Encryption Keys Guide translations
           'encryption_keys_guide': 'Encryption Keys Guide',
           'got_it': 'Got it',
@@ -223,6 +231,18 @@ class AppTranslations extends Translations {
           'keys_test_failed':
               'Key test failed. Your keys may not be working correctly.',
           'error_testing_keys': 'An error occurred while testing keys',
+
+          // How to Get Started Guide translations
+          'how_to_get_started_title': 'How to Get Started',
+          'how_to_get_started_step1_title': '1. Share Your Public Key',
+          'how_to_get_started_step1_desc':
+              'Share your Public Key (found in \'My Key\') with contacts you want to receive messages from. They need this to encrypt messages for you.',
+          'how_to_get_started_step2_title': '2. Add Contact Keys',
+          'how_to_get_started_step2_desc':
+              'Go to \'Third Party Keys\', tap \'Add New Key\', and add the Public Keys of contacts you want to send messages to. Give them recognizable names.',
+          'how_to_get_started_step3_title': '3. Start Messaging',
+          'how_to_get_started_step3_desc':
+              'Use \'Encrypt new Message\' to send secure messages to your added contacts, or \'Decrypt Message\' to import and read messages sent to you.',
         },
       };
 }

@@ -4,12 +4,14 @@ class ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onPressed;
+  final Color? backgroundColor;
 
   const ActionButton({
     super.key,
     required this.label,
     required this.icon,
     required this.onPressed,
+    this.backgroundColor,
   });
 
   @override
@@ -25,11 +27,12 @@ class ActionButton extends StatelessWidget {
         label: Text(label),
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 16.0),
-          backgroundColor: Colors.green,
+          backgroundColor: backgroundColor ?? Colors.green,
           foregroundColor: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: Colors.green),
           ),
         ),
       ),
