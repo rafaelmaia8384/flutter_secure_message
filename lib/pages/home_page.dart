@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'new_message_page.dart';
-import 'import_message_page.dart';
+import 'decrypt_message_page.dart';
 import '../widgets/action_button.dart';
 
 class HomePage extends StatelessWidget {
@@ -37,7 +37,7 @@ class HomePage extends StatelessWidget {
               child: ActionButton(
                 label: 'Decrypt Message',
                 icon: Icons.lock_open,
-                onPressed: () => Get.to(() => const ImportMessagePage()),
+                onPressed: () => Get.to(() => const DecryptMessagePage()),
               ),
             ),
           ],

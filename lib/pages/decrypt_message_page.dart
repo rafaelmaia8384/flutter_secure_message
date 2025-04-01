@@ -4,14 +4,14 @@ import '../services/key_service.dart';
 import '../models/encrypted_message.dart';
 import 'dart:convert';
 
-class ImportMessagePage extends StatefulWidget {
-  const ImportMessagePage({super.key});
+class DecryptMessagePage extends StatefulWidget {
+  const DecryptMessagePage({super.key});
 
   @override
-  State<ImportMessagePage> createState() => _ImportMessagePageState();
+  State<DecryptMessagePage> createState() => _DecryptMessagePageState();
 }
 
-class _ImportMessagePageState extends State<ImportMessagePage> {
+class _DecryptMessagePageState extends State<DecryptMessagePage> {
   final TextEditingController _textController = TextEditingController();
   final RxBool _hasText = false.obs;
   final RxBool _isProcessing = false.obs;
@@ -152,9 +152,7 @@ class _ImportMessagePageState extends State<ImportMessagePage> {
           child: Text(
             content,
             style: TextStyle(
-              fontSize: 18,
-              color: Colors.green,
-              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
         ),

@@ -168,7 +168,10 @@ class _KeysPageState extends State<KeysPage> {
           Obx(() => !_keyService.hasKeys.value
               ? ElevatedButton.icon(
                   onPressed: () => _showGenerateKeyDialog(),
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(
+                    Icons.add,
+                    color: Colors.white,
+                  ),
                   label: Text('generate_first_key'.tr),
                 )
               : const SizedBox.shrink()),
@@ -214,7 +217,10 @@ class _KeysPageState extends State<KeysPage> {
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
                         onPressed: () => _showAddKeyDialog(),
-                        icon: const Icon(Icons.add),
+                        icon: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                        ),
                         label: Text('add_third_party_key'.tr),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(

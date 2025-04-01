@@ -193,18 +193,24 @@ class _NewMessagePageState extends State<NewMessagePage> {
                 itemCount: keyList.length,
                 itemBuilder: (context, index) {
                   final key = keyList[index];
-                  return CheckboxListTile(
-                    title: Text(key.name),
-                    value: selectedKeys.contains(key.publicKey),
-                    onChanged: (bool? value) {
-                      setState(() {
-                        if (value == true) {
-                          selectedKeys.add(key.publicKey);
-                        } else {
-                          selectedKeys.remove(key.publicKey);
-                        }
-                      });
-                    },
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CheckboxListTile(
+                        title: Text(key.name),
+                        value: selectedKeys.contains(key.publicKey),
+                        onChanged: (bool? value) {
+                          setState(() {
+                            if (value == true) {
+                              selectedKeys.add(key.publicKey);
+                            } else {
+                              selectedKeys.remove(key.publicKey);
+                            }
+                          });
+                        },
+                      ),
+                      if (index == 0 && keyList.length > 1) Divider(),
+                    ],
                   );
                 },
               ),

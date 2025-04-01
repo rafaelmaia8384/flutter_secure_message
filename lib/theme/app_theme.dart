@@ -10,8 +10,8 @@ class AppTheme {
       surface: Colors.grey[900]!,
       error: Colors.red,
     ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.black,
+    appBarTheme: AppBarTheme(
+      backgroundColor: Colors.grey[900]!,
       foregroundColor: Colors.white,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(

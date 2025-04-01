@@ -18,7 +18,10 @@ class ActionButton extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 280, maxWidth: 300),
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon),
+        icon: Icon(
+          icon,
+          color: Colors.white,
+        ),
         label: Text(label),
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 16.0),

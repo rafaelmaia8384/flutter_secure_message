@@ -6,7 +6,7 @@ class AppTranslations extends Translations {
         'en_US': {
           'welcome': 'Secure Message',
           'secure_message':
-              'Where your messages are encrypted and secure, no matter which chat you are using.',
+              'You don\'t need to trust intermediaries to have a secure conversation.',
           'authenticate': 'Authenticate to Continue',
           'biometric_not_available':
               'Biometric authentication is not available on this device',
