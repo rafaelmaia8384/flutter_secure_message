@@ -10,6 +10,7 @@ import 'package:flutter_secure_message/theme/app_theme.dart';
 import 'package:flutter_secure_message/translations/app_translations.dart';
 import 'package:flutter_secure_message/controllers/app_controller.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,13 +19,22 @@ void main() async {
   await initializeDateFormatting();
 
   // Initialize GetX services
+  // 1. Put FlutterSecureStorage first, as KeyService depends on it
+  Get.put(const FlutterSecureStorage());
+
+  // 2. Initialize and put AuthService
   await Get.putAsync(() => AuthService().init());
-  final keyService = KeyService();
-  await keyService.init();
-  Get.put(keyService);
-  final messageService = MessageService();
-  await messageService.init();
-  Get.put(messageService);
+
+  // 3. Initialize and put KeyService (now it can find FlutterSecureStorage)
+  // You can use putAsync here too if init is complex, or keep it separate
+  // Using putAsync for consistency:
+  await Get.putAsync(() => KeyService().init());
+
+  // 4. Initialize and put MessageService
+  // Assuming MessageService might depend on KeyService, put it after
+  await Get.putAsync(() => MessageService().init());
+
+  // 5. Put AppController
   Get.put(AppController());
 
   runApp(const MyApp());

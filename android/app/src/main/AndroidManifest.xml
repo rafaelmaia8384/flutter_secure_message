@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.USE_BIOMETRICS"/>
     <application
-        android:label="flutter_secure_message"
+        android:label="Secure Message"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

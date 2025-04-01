@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'dart:convert';
@@ -65,6 +67,8 @@ class KeyService extends GetxService {
 
       return this;
     } catch (e) {
+      // Add logging to see if init fails early
+      log("Error during KeyService init: $e");
       return this; // Returns the service even with errors to prevent application failures
     }
   }
@@ -158,6 +162,7 @@ class KeyService extends GetxService {
       // hasKeys já está definido como true acima
       return true;
     } catch (e) {
+      log('Error generating new keys: $e');
       return false;
     }
   }

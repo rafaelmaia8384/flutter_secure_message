@@ -219,7 +219,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
                   if (selectedKeys.isEmpty) {
                     Get.snackbar(
                       'error'.tr,
-                      'select_at_least_one'.tr,
+                      'select_at_least_one_recipient'.tr,
                       snackPosition: SnackPosition.BOTTOM,
                       backgroundColor: Colors.red,
                       colorText: Colors.white,
