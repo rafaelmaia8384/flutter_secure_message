@@ -243,6 +243,13 @@ class AppTranslations extends Translations {
           'how_to_get_started_step3_title': '3. Start Messaging',
           'how_to_get_started_step3_desc':
               'Use \'Encrypt new Message\' to send secure messages to your added contacts, or \'Decrypt Message\' to import and read messages sent to you.',
+
+          // Buy me a coffee Dialog translations
+          'buy_me_a_coffee_title': 'Support the Developer',
+          'buy_me_a_coffee_message':
+              'If you find this app useful, please consider supporting its development with a small donation. It helps keep the app free and ad-free!',
+          'buy_me_a_coffee_button': 'Buy me a coffee',
+          'error_launching_url': 'Could not open the link',
         },
       };
 }

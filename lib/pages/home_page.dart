@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'new_message_page.dart';
 import 'decrypt_message_page.dart';
 import '../widgets/action_button.dart';
@@ -106,6 +107,41 @@ class HomePage extends StatelessWidget {
     );
   }
 
+  // New method for "Buy me a coffee" dialog
+  Future<void> _showBuyMeACoffeeDialog() async {
+    const String buyMeACoffeeUrl = 'https://buymeacoffee.com/rafaelmaia8384';
+
+    await Get.dialog(
+      AlertDialog(
+        title: Text('buy_me_a_coffee_title'.tr),
+        content: Text('buy_me_a_coffee_message'.tr),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('cancel'.tr),
+          ),
+          TextButton(
+            onPressed: () async {
+              final Uri url = Uri.parse(buyMeACoffeeUrl);
+              // Check if the URL can be launched before attempting
+              if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                Get.back(); // Close dialog
+                Get.snackbar(
+                  'error'.tr,
+                  'error_launching_url'.tr, // New translation key
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+              } else {
+                Get.back(); // Close dialog after successful launch
+              }
+            },
+            child: Text('buy_me_a_coffee_button'.tr), // New translation key
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -156,7 +192,7 @@ class HomePage extends StatelessWidget {
                 label: 'buy_me_a_coffee'.tr,
                 backgroundColor: Colors.grey[900],
                 icon: Icons.favorite_outline,
-                onPressed: () => Get.to(() => const DecryptMessagePage()),
+                onPressed: _showBuyMeACoffeeDialog,
               ),
             ),
             const SizedBox(height: 48),
