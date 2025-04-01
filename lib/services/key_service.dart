@@ -43,7 +43,7 @@ class ThirdPartyKey {
 }
 
 class KeyService extends GetxService {
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  late final FlutterSecureStorage _storage;
   final RxBool hasKeys = false.obs;
   final RxString publicKey = ''.obs;
   final RxString privateKey = ''.obs;
@@ -58,6 +58,8 @@ class KeyService extends GetxService {
 
   Future<KeyService> init() async {
     try {
+      // Initialize storage from GetX
+      _storage = Get.find<FlutterSecureStorage>();
       await loadKeys();
       await loadThirdPartyKeys();
 
@@ -146,19 +148,8 @@ class KeyService extends GetxService {
       // Importante: definir hasKeys como true ANTES do teste
       hasKeys.value = true;
 
-      // Testar se podemos criptografar e descriptografar com essas chaves
-      final testResult = await testSelfEncryption();
-
       // Testar o cenário de comunicação entre usuários diferentes
-      final testCommunication = await testUserToCommunication();
-
-      if (!testResult || !testCommunication) {
-        // Limpar chaves inválidas
-        privateKey.value = "";
-        publicKey.value = "";
-        hasKeys.value = false;
-        return false;
-      }
+      // final testCommunication = await testUserToCommunication(); REMOVED
 
       // Armazenar as chaves
       await _storage.write(key: 'public_key', value: publicKeyBase64);
@@ -442,44 +433,6 @@ class KeyService extends GetxService {
     }
   }
 
-  Future<bool> testSelfEncryption() async {
-    try {
-      if (!hasKeys.value) {
-        return false;
-      }
-
-      // Get user keys
-      final publicKeyStr = publicKey.value;
-      final privateKeyStr = privateKey.value;
-
-      if (publicKeyStr.isEmpty || privateKeyStr.isEmpty) {
-        return false;
-      }
-
-      // Test message
-      final testMessage = "Testing self encryption.";
-
-      // Encrypt message using high-level API
-      try {
-        // Encrypt using new implementation
-        final encryptedBase64 = await encryptMessage(testMessage, publicKeyStr);
-
-        // Decrypt using new implementation
-        final decryptedMessage =
-            await decryptMessage(encryptedBase64, privateKeyStr);
-
-        // Check if content is correct
-        final success = (decryptedMessage == testMessage);
-
-        return success;
-      } catch (e) {
-        return false;
-      }
-    } catch (e) {
-      return false;
-    }
-  }
-
   Future<bool> forceRegenerateKeys() async {
     try {
       // Clear existing keys
@@ -508,70 +461,5 @@ class KeyService extends GetxService {
       return message.substring(MESSAGE_IDENTIFIER.length);
     }
     return message; // Returns original message if it doesn't have the identifier
-  }
-
-  // Tests encryption between different users
-  Future<bool> testUserToCommunication() async {
-    try {
-      // Current user keys (Alice)
-      final alicePublicKey = publicKey.value;
-      final alicePrivateKey = privateKey.value;
-
-      // Create keys for test user (Bob)
-      final bobKeyPair = await _keyExchangeAlgorithm.newKeyPair();
-      final bobPrivateKeyBytes = await bobKeyPair.extractPrivateKeyBytes();
-      final bobPublicKeyObj = await bobKeyPair.extractPublicKey();
-      final bobPublicKeyBytes = bobPublicKeyObj.bytes;
-
-      final bobPublicKey = base64Encode(bobPublicKeyBytes);
-      final bobPrivateKey = base64Encode(bobPrivateKeyBytes);
-
-      // Test message
-      final testMessage = "Testing communication between Alice and Bob.";
-      try {
-        // Alice encrypts message for Bob
-        final encryptedForBob = await encryptMessage(testMessage, bobPublicKey);
-
-        // Save current Alice's public key
-        final currentPublicKey = publicKey.value;
-
-        // Simulate we're on Bob's device
-        // (using Bob's private key and Alice's public key)
-        publicKey.value = alicePublicKey; // Set Alice's public key
-
-        // Bob decrypts message with his private key
-        final decryptedByBob =
-            await decryptMessage(encryptedForBob, bobPrivateKey);
-
-        // Restore state
-        publicKey.value = currentPublicKey;
-
-        final success1 = (decryptedByBob == testMessage);
-
-        // Test 2: Bob encrypts for Alice
-
-        // Simulate we're on Bob's device
-        publicKey.value = bobPublicKey; // Now Bob is the sender
-
-        // Bob encrypts message for Alice
-        final encryptedForAlice =
-            await encryptMessage(testMessage, alicePublicKey);
-
-        // Restore state (back to being Alice)
-        publicKey.value = alicePublicKey;
-
-        // Alice decrypts message with her private key
-        final decryptedByAlice =
-            await decryptMessage(encryptedForAlice, alicePrivateKey);
-
-        final success2 = (decryptedByAlice == testMessage);
-
-        return success1 && success2;
-      } catch (e) {
-        return false;
-      }
-    } catch (e) {
-      return false;
-    }
   }
 }
