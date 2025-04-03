@@ -292,7 +292,7 @@ class _DecryptMessagePageState extends State<DecryptMessagePage> {
                                     AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
-                          : Text('Decrypt Message'),
+                          : Text('decrypt_message'.tr),
                     )),
               ),
             ],

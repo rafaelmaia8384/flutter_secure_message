@@ -129,7 +129,7 @@ class _NewMessagePageState extends State<NewMessagePage> {
                                     AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
-                          : Text('Encrypt and Share'),
+                          : Text('encrypt_and_share'.tr),
                     )),
               ),
             ),
