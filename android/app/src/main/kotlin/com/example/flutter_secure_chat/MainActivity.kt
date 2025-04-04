@@ -1,4 +1,4 @@
-package com.example.flutter_secure_message
+package cc.inosoftware.securemessage
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
