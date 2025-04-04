@@ -47,6 +47,8 @@
 		<true/>
 		<key>NSFaceIDUsageDescription</key>
 		<string>Please authenticate to access Secure Message</string>
+        <key>NSCameraUsageDescription</key>
+        <string>We need access to your camera to read QR codes.</string>
 		<key>LSApplicationQueriesSchemes</key>
 		<array>
 			<string>app-settings</string>
